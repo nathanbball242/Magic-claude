@@ -102,6 +102,7 @@ const UI = {
       const att = attachments(c);
       if (att.length) b.push(`<span class="bd eq">+${att.length}</span>`);
       const s = st(c);
+      if (G.strip[c.ctrl]) b.push(`<span class="bd bounty">${G.strip[c.ctrl] === 'full' ? 'EXPOSED' : 'NO HEX/IND'}</span>`);
       if (s.kw.has('indestructible') && isCreature(c)) b.push('<span class="bd">IND</span>');
       if (s.kw.has('hexproof') || s.kw.has('shroud')) b.push('<span class="bd">HEX</span>');
       html += `<div class="badges">${b.join('')}</div>`;
@@ -176,7 +177,7 @@ const UI = {
       <span class="chip ${dmgFrom(BOT) >= 14 ? 'gold' : ''}" title="Commander damage from Shay">Shay ${dmgFrom(BOT)}/21</span>
       <span class="chip">Hand ${bot.hand.length}</span><span class="chip">Lib ${bot.library.length}</span>
       <button class="chip" data-zone="gy" data-pi="1">GY ${bot.gy.length}</button><button class="chip" data-zone="exile" data-pi="1">Exile ${bot.exile.length}</button>
-      ${czChip(BOT)}${G.monarch === BOT ? '<span class="chip gold">Monarch</span>' : ''}${bot.energy ? `<span class="chip">E ${bot.energy}</span>` : ''}
+      ${czChip(BOT)}${G.strip[BOT] ? `<span class="chip gold">Shields down: all ${perms(BOT).length}</span>` : ''}${G.monarch === BOT ? '<span class="chip gold">Monarch</span>' : ''}${bot.energy ? `<span class="chip">E ${bot.energy}</span>` : ''}
       <span class="chip">Mana ${manaAvail(BOT)}${UI.colorSummary(BOT)}</span>`;
     const mana = manaAvail(HUMAN);
     UI.el('myBar').innerHTML = `

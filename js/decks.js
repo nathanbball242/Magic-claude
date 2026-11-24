@@ -44,12 +44,12 @@ const SAI_UPGRADES = ['Ornithopter', 'Memnite', 'Hangarback Walker', 'Thopter Fo
 const DECKS = {
   shay: { name: 'Shay Cormac (your deck)', commander: 'Shay Cormac', list: SHAY_LIST },
   cloud: {
-    name: 'Limit Break (Cloud)', botName: 'Cloud bot', commander: 'Cloud, Ex-SOLDIER',
+    name: 'Limit Break (Cloud)', botName: 'Bot', commander: 'Cloud, Ex-SOLDIER',
     list: [...ones(CLOUD_PRECON_CREATURES.filter(n => !CLOUD_CUT.includes(n))), ...ones(CLOUD_PRECON_OTHER), ...ones(CLOUD_UPGRADES), ['Mountain', 12], ['Forest', 12], ['Plains', 12]],
     cut: CLOUD_CUT,
   },
   sai: {
-    name: 'Keen Engineering (Sai)', botName: 'Sai bot', commander: 'Sai, Master Thopterist',
+    name: 'Keen Engineering (Sai)', botName: 'Bot', commander: 'Sai, Master Thopterist',
     list: [...ones(SAI_PRECON_CREATURES.filter(n => !SAI_CUT.includes(n))), ...ones(SAI_PRECON_OTHER), ...ones(SAI_UPGRADES), ['Island', 38]],
     cut: SAI_CUT,
   },

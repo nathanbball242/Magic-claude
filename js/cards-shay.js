@@ -41,7 +41,7 @@ C('Shay Cormac', {
   text: "{1}: Permanents your opponents control lose hexproof, indestructible, protection, shroud, and ward until end of turn.\nWhenever a creature an opponent controls becomes the target of a spell or ability you control, put a bounty counter on that creature.\nWhenever a creature with a bounty counter on it dies, put two +1/+1 counters on Shay Cormac.",
   abilities: [{
     id: 'strip', label: "{1}: Opponents' permanents lose hexproof, indestructible, protection, shroud, ward", cost: 1, speed: 'instant', hideFromAutoStop: true,
-    resolve: async (ctx) => { G.strip[opp(ctx.p)] = 'full'; log(`Shay Cormac: ${P(opp(ctx.p)).name}'s permanents lose hexproof, indestructible, protection, shroud and ward this turn.`, 'bounty'); },
+    resolve: async (ctx) => { const o = opp(ctx.p); G.strip[o] = 'full'; const ps = perms(o); log(`Shay Cormac: all ${ps.length} permanents ${P(o).name} controls lose hexproof, indestructible, protection, shroud and ward until end of turn${ps.length ? ` (${ps.map(c => c.name.split(',')[0]).join(', ')})` : ''}. Permanents it plays later this turn are affected too.`, 'bounty'); },
   }],
   on: {
     targeted: async (s, { byPi, target }) => {

@@ -496,7 +496,7 @@ C("Akroma's Will", {
 EQ('Shadowspear', {
   mc: '{1}', types: ['Legendary', 'Artifact'], equip: 2, text: 'Equipped creature gets +1/+1 and has trample and lifelink.\n{1}: Permanents your opponents control lose hexproof and indestructible until end of turn.\nEquip {2}',
   attachBuff: () => ({ p: 1, t: 1, kw: ['trample', 'lifelink'] }),
-  abilities: [{ id: 'strip', label: '{1}: Opponents lose hexproof and indestructible', cost: 1, speed: 'instant', hideFromAutoStop: true, resolve: async (ctx) => { if (G.strip[opp(ctx.p)] !== 'full') G.strip[opp(ctx.p)] = 'hi'; log('Shadowspear: opponents\' permanents lose hexproof and indestructible.'); } }],
+  abilities: [{ id: 'strip', label: '{1}: Opponents lose hexproof and indestructible', cost: 1, speed: 'instant', hideFromAutoStop: true, resolve: async (ctx) => { if (G.strip[opp(ctx.p)] !== 'full') G.strip[opp(ctx.p)] = 'hi'; log(`Shadowspear: all ${perms(opp(ctx.p)).length} permanents ${P(opp(ctx.p)).name} controls lose hexproof and indestructible until end of turn.`); } }],
 });
 EQ('Blackblade Reforged', {
   mc: '{2}', types: ['Legendary', 'Artifact'], equip: 7, equipLegend: 3, text: 'Equipped creature gets +1/+1 for each land you control.\nEquip legendary creature {3}\nEquip {7}',

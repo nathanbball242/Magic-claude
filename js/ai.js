@@ -77,7 +77,44 @@ const AIH = {
     if (isLand(c)) return lands >= 6;
     return lands < 3 && mv(c) > 4;
   },
+  // which colors does this player's hand want but can't make yet
+  colorNeed(pi) {
+    const have = manaColors(pi);
+    for (const l of perms(pi)) if (isLand(l) && l.tapped) for (const u of unitsOf(l)) for (const ch of u) have[ch] = (have[ch] || 0) + 1;
+    const need = {};
+    for (const c of P(pi).hand.concat(P(pi).cz)) {
+      const cnt = {};
+      for (const p of toCost(c.d.mc || '').pips) for (const ch of p.split('/')) if (COLORS.includes(ch)) cnt[ch] = (cnt[ch] || 0) + (p.includes('/') ? 0.5 : 1);
+      for (const ch in cnt) need[ch] = (need[ch] || 0) + Math.max(0, cnt[ch] - (have[ch] || 0)) * (c.isCmd ? 3 : 1) + 0.2;
+    }
+    return need;
+  },
+  landScore(pi, l, need) {
+    const cols = unitsOf(Object.assign(Object.create(l), { ctrl: pi })).join('');
+    let v = 0;
+    for (const ch of new Set(cols)) v += need[ch] || 0;
+    if (l.d.entersTapped) v -= 0.3;
+    return v;
+  },
+  bestLand(pi, lands) {
+    if (!lands.length) return null;
+    const need = AIH.colorNeed(pi);
+    return lands.slice().sort((a, b) => AIH.landScore(pi, b, need) - AIH.landScore(pi, a, need))[0];
+  },
   pickLands(pi, cs, n) {
+    const need = AIH.colorNeed(pi);
+    const order = cs.slice().sort((a, b) => AIH.landScore(pi, b, need) - AIH.landScore(pi, a, need));
+    const out = [];
+    for (const c of order) {
+      if (out.length >= n) break;
+      if (out.some(o => o.name === c.name) && order.some(o => !out.includes(o) && o.name !== c.name && !out.some(x => x.name === o.name))) continue;
+      out.push(c);
+      const col = BASIC_COLOR[c.name]; if (col && need[col]) need[col] -= 1;
+    }
+    for (const c of order) { if (out.length >= n) break; if (!out.includes(c)) out.push(c); }
+    return out;
+  },
+  pickLandsOld(pi, cs, n) {
     const out = [];
     const counts = {};
     for (const l of perms(pi).filter(isLand)) counts[l.name] = (counts[l.name] || 0) + 1;
@@ -94,10 +131,10 @@ const AIH = {
     const score = (f) => allPerms().filter(c => f(c) && !has(c, 'indestructible')).reduce((a, c) => a + (c.ctrl === pi ? -AIH.value(c) : AIH.value(c)), 0);
     return AUSTERE_MODES.map(m => ({ v: m.value, s: score(m.f) })).sort((a, b) => b.s - a.s).slice(0, 2).map(x => x.v);
   },
-  limitTier(ctx, base, avail) {
+  limitTier(ctx, canOmni) {
     const oppTapped = allCreatures().filter(c => c.tapped && c.ctrl !== ctx.p);
     const ownTapped = allCreatures().filter(c => c.tapped && c.ctrl === ctx.p);
-    if (base + 4 <= avail && oppTapped.length >= 2 && oppTapped.reduce((a, c) => a + AIH.value(c), 0) > ownTapped.reduce((a, c) => a + AIH.value(c), 0) * 2) return 'omni';
+    if (canOmni && oppTapped.length >= 2 && oppTapped.reduce((a, c) => a + AIH.value(c), 0) > ownTapped.reduce((a, c) => a + AIH.value(c), 0) * 2) return 'omni';
     return 'cross';
   },
   hexPick(pi, cs) {
@@ -186,7 +223,7 @@ const AI = {
     if (c.d.canCast && !c.d.canCast(ctx)) return false;
     let cost = AI.castCost(pi, c, from);
     if (c.d.freeWithCommander && controlsCommander(pi)) cost = 0;
-    if (c.d.xCount) cost += c.d.xCount; // need at least X=1
+    if (c.d.xCount) cost = addCost(cost, c.d.xCount); // need at least X=1
     return canPay(pi, cost, payOpts(c, { p: pi }));
   },
   tried(pi, key) { return G.tf.aiTried.has(pi + ':' + key); },
@@ -217,7 +254,7 @@ const AI = {
     // 1. land
     if (sorceryOK(pi) && pl.landsPlayed < 1) {
       const lands = [...hand.filter(isLand), ...AI.playableExile(pi).filter(isLand)];
-      let l = lands.find(c => isBasic(c)) || lands.find(c => c.name !== 'Glimmervoid') || (artifactsOf(pi).length ? lands[0] : null) || lands[0];
+      let l = AIH.bestLand(pi, lands.filter(c => c.name !== 'Glimmervoid' || artifactsOf(pi).length)) || lands[0];
       if (l && !AI.tried(pi, 'land' + l.id)) return { key: 'land' + l.id, run: async () => { pl.landsPlayed++; if (l.zone === 'exile') l.playable = null; await enterBF(l, pi, {}); return true; } };
     }
     if (!sorceryOK(pi)) return null;
@@ -231,7 +268,7 @@ const AI = {
         if (!AI.tried(pi, 'w' + c.id) && AI.canCastNow(pi, c, 'hand') && AI.wipeIsGood(pi, c)) return { key: 'w' + c.id, run: () => castSpell(pi, c, 'hand') };
       }
       const rift = hand.find(c => c.name === 'Cyclonic Rift');
-      if (rift && !AI.tried(pi, 'rift') && canPay(pi, 7, {})) return { key: 'rift', run: () => castSpell(pi, rift, 'hand', { alt: rift.d.alts[0] }) };
+      if (rift && !AI.tried(pi, 'rift') && canPay(pi, costOf(pi, rift, { p: pi, alt: rift.d.alts[0] }), {})) return { key: 'rift', run: () => castSpell(pi, rift, 'hand', { alt: rift.d.alts[0] }) };
       const disk = perms(pi).find(c => c.name === "Nevinyrral's Disk" && !c.tapped);
       if (disk && !AI.tried(pi, 'disk') && canPay(pi, 1, { exclude: disk }) && AI.wipeIsGood(pi, disk)) return { key: 'disk', run: () => activate(pi, disk, disk.d.abilities[0]) };
       for (const c of pl.exile.filter(x => x.foretold != null && x.foretold < G.turn && x.d.role === 'wipe')) {
@@ -253,8 +290,8 @@ const AI = {
     const vb = hand.find(c => c.name === 'Vandalblast');
     if (vb && !AI.tried(pi, 'vb')) {
       const theirs = perms(opp(pi)).filter(isArtifact);
-      if (theirs.length >= 2 && canPay(pi, 5, {})) return { key: 'vb', run: () => castSpell(pi, vb, 'hand', { alt: vb.d.alts[0] }) };
-      if (theirs.length && canPay(pi, 1, {})) return { key: 'vb', run: () => castSpell(pi, vb, 'hand') };
+      if (theirs.length >= 2 && canPay(pi, costOf(pi, vb, { p: pi, alt: vb.d.alts[0] }), {})) return { key: 'vb', run: () => castSpell(pi, vb, 'hand', { alt: vb.d.alts[0] }) };
+      if (theirs.length && canPay(pi, costOf(pi, vb, { p: pi, from: 'hand' }), {})) return { key: 'vb', run: () => castSpell(pi, vb, 'hand') };
     }
     // 5. development, cheapest first, keep reserve for held instants
     const reserve = AI.reserve(pi);

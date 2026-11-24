@@ -140,7 +140,7 @@ C('Summon: Kujata', {
 
 /* ---------------- spells ---------------- */
 C('Ultimate Magic: Holy', {
-  mc: '{2}{W}', colors: 'W', types: ['Instant'], foretell: 3, role: 'protect', protect: 'team',
+  mc: '{2}{W}', colors: 'W', types: ['Instant'], foretell: 3, foretellMC: '{2}{W}', role: 'protect', protect: 'team',
   text: 'Permanents you control gain indestructible until end of turn. If this spell was cast from exile, prevent all damage that would be dealt to you this turn.\nForetell {2}{W}',
   spell: async (ctx) => {
     for (const c of perms(ctx.p)) tmpAdd(c, { kw: ['indestructible'] });
@@ -149,7 +149,7 @@ C('Ultimate Magic: Holy', {
   },
 });
 C('Ultimate Magic: Meteor', {
-  mc: '{5}{R}', colors: 'R', types: ['Sorcery'], foretell: 6, role: 'wipe',
+  mc: '{5}{R}', colors: 'R', types: ['Sorcery'], foretell: 6, foretellMC: '{5}{R}', role: 'wipe',
   text: 'Ultimate Magic: Meteor deals 7 damage to each creature. If this spell was cast from exile, for each opponent, choose an artifact or land that player controls. Destroy the chosen permanents.\nForetell {5}{R}',
   spell: async (ctx) => {
     for (const c of allCreatures()) dealDamage(ctx.card, c, 7);
@@ -260,7 +260,7 @@ C('Vandalblast', {
   mc: '{R}', colors: 'R', types: ['Sorcery'], role: 'artRemoval',
   text: 'Destroy target artifact you don\'t control.\nOverload {4}{R}',
   canCast: (ctx) => allPerms().some(c => isArtifact(c) && c.ctrl !== ctx.p),
-  alts: [{ key: 'overload', label: 'Overload (destroy each artifact you don\'t control)', cost: 5, choose: async (ctx) => { ctx.overload = true; ctx.modeLabel = 'overload'; return true; } }],
+  alts: [{ key: 'overload', label: 'Overload (destroy each artifact you don\'t control)', mc: '{4}{R}', choose: async (ctx) => { ctx.overload = true; ctx.modeLabel = 'overload'; return true; } }],
   choose: async (ctx) => { if (ctx.alt) return true; return await pickTarget(ctx, 'Destroy target artifact you don\'t control', c => isArtifact(c) && c.ctrl !== ctx.p, cs => AIH.bestCard(cs)); },
   spell: async (ctx) => {
     if (ctx.alt) await destroyMany(allPerms().filter(c => isArtifact(c) && c.ctrl !== ctx.p));
@@ -353,7 +353,7 @@ C('Stoneforge Mystic', {
   text: 'When Stoneforge Mystic enters, you may search your library for an Equipment card, reveal it, put it into your hand, then shuffle.\n{1}{W}, {T}: You may put an Equipment card from your hand onto the battlefield.',
   etb: async (c) => { const p = await searchLibrary(c.ctrl, isEquipment, { prompt: 'Search for an Equipment', ai: cs => [AIH.bestCard(cs)] }); for (const e of p) { moveTo(e, 'hand'); log(`${P(c.ctrl).name} reveals ${e.name}.`); } },
   abilities: [{
-    id: 'put', label: '{1}{W}, {T}: put an Equipment from hand onto the battlefield', cost: 2, tap: true, speed: 'instant',
+    id: 'put', label: '{1}{W}, {T}: put an Equipment from hand onto the battlefield', cost: '{1}{W}', tap: true, speed: 'instant',
     can: (c) => P(c.ctrl).hand.some(isEquipment),
     choose: async (ctx) => { const k = await chooseCard(ctx.p, { prompt: 'Equipment to put onto the battlefield', cands: P(ctx.p).hand.filter(isEquipment), ai: cs => AIH.bestCard(cs) }); if (!k) return false; ctx.eq = k; return true; },
     resolve: async (ctx) => { if (ctx.eq.zone === 'hand') await enterBF(ctx.eq, ctx.p, {}); },
@@ -447,7 +447,7 @@ EQ('Sunforger', {
   mc: '{3}', equip: 3, text: 'Equipped creature gets +4/+0.\n{R}{W}, Unattach Sunforger: Search your library for a red or white instant card with mana value 4 or less and cast that card without paying its mana cost. Then shuffle.\nEquip {3}',
   attachBuff: () => ({ p: 4 }),
   abilities: [{
-    id: 'forge', label: '{R}{W}, Unattach: cast a red or white instant (MV 4 or less) from library free', cost: 2, speed: 'instant',
+    id: 'forge', label: '{R}{W}, Unattach: cast a red or white instant (MV 4 or less) from library free', cost: '{R}{W}', speed: 'instant',
     can: (c) => c.attachedTo != null,
     preCost: async (ctx) => { ctx.card.attachedTo = null; },
     resolve: async (ctx) => {
@@ -462,8 +462,8 @@ C('Fighter Class', {
   text: '(Gain the next level as a sorcery to add its ability.)\nWhen Fighter Class enters, search your library for an Equipment card, reveal it, put it into your hand, then shuffle.\n{1}{R}{W}: Level 2 — Equip abilities you activate cost {2} less to activate.\n{3}{R}{W}: Level 3 — Whenever a creature you control attacks, up to one target creature blocks it this combat if able.',
   etb: async (c) => { c.perm.level = 1; const p = await searchLibrary(c.ctrl, isEquipment, { prompt: 'Search for an Equipment', ai: cs => [AIH.bestCard(cs)] }); for (const e of p) { moveTo(e, 'hand'); log(`${P(c.ctrl).name} reveals ${e.name}.`); } },
   abilities: [
-    { id: 'l2', label: 'Level 2 ({1}{R}{W})', cost: 3, speed: 'sorcery', noStack: true, can: c => (c.perm.level || 1) === 1, resolve: async (ctx) => { ctx.card.perm.level = 2; } },
-    { id: 'l3', label: 'Level 3 ({3}{R}{W})', cost: 5, speed: 'sorcery', noStack: true, can: c => c.perm.level === 2, resolve: async (ctx) => { ctx.card.perm.level = 3; } },
+    { id: 'l2', label: 'Level 2 ({1}{R}{W})', cost: '{1}{R}{W}', speed: 'sorcery', noStack: true, can: c => (c.perm.level || 1) === 1, resolve: async (ctx) => { ctx.card.perm.level = 2; } },
+    { id: 'l3', label: 'Level 3 ({3}{R}{W})', cost: '{3}{R}{W}', speed: 'sorcery', noStack: true, can: c => c.perm.level === 2, resolve: async (ctx) => { ctx.card.perm.level = 3; } },
   ],
   on: {
     attacks: async (s, { attacker }) => {

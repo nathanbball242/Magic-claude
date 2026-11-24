@@ -20,7 +20,7 @@ const protectHintAI = (ctx) => (cs) => {
 /* ---------------- tokens ---------------- */
 C('Thopter', { token: true, types: ['Artifact', 'Creature'], sub: 'Thopter', pt: [1, 1], kw: ['flying'], text: 'Flying' });
 C('Blue Thopter', { token: true, colors: 'U', types: ['Artifact', 'Creature'], sub: 'Thopter', pt: [1, 1], kw: ['flying'], text: 'Flying' });
-C('Treasure', { token: true, treasure: true, types: ['Artifact'], sub: 'Treasure', text: '{T}, Sacrifice this artifact: Add one mana of any color.' });
+C('Treasure', { token: true, treasure: true, prod: ['WUBRGC'], types: ['Artifact'], sub: 'Treasure', text: '{T}, Sacrifice this artifact: Add one mana of any color.' });
 C('Myr', { token: true, types: ['Artifact', 'Creature'], sub: 'Myr', pt: [1, 1], text: '' });
 C('Servo', { token: true, types: ['Artifact', 'Creature'], sub: 'Servo', pt: [1, 1], text: '' });
 C('Construct 4/4', { token: true, types: ['Artifact', 'Creature'], sub: 'Construct', pt: [4, 4], text: '' });
@@ -106,7 +106,7 @@ C('Planar Outburst', {
   mc: '{3}{W}{W}', colors: 'W', types: ['Sorcery'], role: 'wipe',
   text: 'Destroy all nonland creatures.\nAwaken 4—{5}{W}{W}{W} (If you cast this spell for {5}{W}{W}{W}, also put four +1/+1 counters on target land you control and it becomes a 0/0 Elemental creature with haste. It\'s still a land.)',
   alts: [{
-    key: 'awaken', label: 'Cast with Awaken 4', cost: 8,
+    key: 'awaken', label: 'Cast with Awaken 4', mc: '{5}{W}{W}{W}',
     choose: async (ctx) => { ctx.noFizzle = true; return await pickTarget(ctx, 'Awaken: choose a land you control', c => isLand(c) && c.ctrl === ctx.p, cs => cs[0]); },
   }],
   spell: async (ctx) => {
@@ -171,19 +171,18 @@ C('Sandswirl Wanderglyph', {
   },
 });
 const LIMIT_TIERS = [
-  { label: 'Cross-Slash (+0): destroy target tapped creature', value: 'cross', extra: 0 },
-  { label: 'Blade Beam (+1): destroy any number of target tapped creatures with different controllers', value: 'beam', extra: 1 },
-  { label: 'Omnislash (+4): destroy all tapped creatures', value: 'omni', extra: 4 },
+  { label: 'Cross-Slash (+{0}): destroy target tapped creature', value: 'cross', extra: '' },
+  { label: 'Blade Beam (+{1}): destroy any number of target tapped creatures with different controllers', value: 'beam', extra: '{1}' },
+  { label: 'Omnislash (+{3}{W}): destroy all tapped creatures', value: 'omni', extra: '{3}{W}' },
 ];
 C("Cloud's Limit Break", {
   mc: '{1}{W}', colors: 'W', types: ['Instant'], role: 'removal',
   text: 'Tiered (Choose one additional cost.)\n• Cross-Slash — {0} — Destroy target tapped creature.\n• Blade Beam — {1} — Destroy any number of target tapped creatures with different controllers.\n• Omnislash — {3}{W} — Destroy all tapped creatures.',
   canCast: () => allCreatures().some(c => c.tapped),
   choose: async (ctx) => {
-    const base = costOf(ctx.p, ctx.card, { p: ctx.p, from: ctx.from });
-    const avail = manaAvail(ctx.p);
-    const opts = LIMIT_TIERS.map(t => ({ label: `${t.label} [${base + t.extra}]`, value: t.value, disabled: base + t.extra > avail }));
-    const tier = await chooseOpt(ctx.p, { prompt: "Cloud's Limit Break: choose a tier", opts, ai: () => AIH.limitTier(ctx, base, avail) });
+    const tc = (t) => costOf(ctx.p, ctx.card, { p: ctx.p, from: ctx.from, extra: t.extra });
+    const opts = LIMIT_TIERS.map(t => ({ label: `${t.label} [${tc(t)}]`, value: t.value, disabled: !canPay(ctx.p, tc(t), {}) }));
+    const tier = await chooseOpt(ctx.p, { prompt: "Cloud's Limit Break: choose a tier", opts, ai: () => AIH.limitTier(ctx, canPay(ctx.p, tc(LIMIT_TIERS[2]), {})) });
     if (!tier) return false;
     const T = LIMIT_TIERS.find(t => t.value === tier);
     ctx.tier = tier; ctx.extra = T.extra; ctx.modeLabel = T.label.split(' (')[0];
@@ -335,7 +334,7 @@ C('Flesh to Dust', {
   spell: async (ctx) => { const t = ctx.targets[0]; if (tOK(ctx, t)) await destroy(t); },
 });
 C('Murderous Compulsion', {
-  mc: '{1}{B}', colors: 'B', types: ['Sorcery'], role: 'removal', threat: 'destroy', madness: 2,
+  mc: '{1}{B}', colors: 'B', types: ['Sorcery'], role: 'removal', threat: 'destroy', madness: 2, madnessMC: '{1}{B}',
   text: 'Destroy target tapped creature.\nMadness {1}{B} (If you discard this card, discard it into exile. When you do, cast it for its madness cost or put it into your graveyard.)',
   canCast: () => allCreatures().some(c => c.tapped),
   choose: (ctx) => pickTarget(ctx, 'Destroy target tapped creature', c => isCreature(c) && c.tapped),
@@ -348,7 +347,7 @@ C('Compulsory Rest', {
   grantAbilities: (a, c) => [{ id: 'crest', label: '{2}, Sacrifice this creature: You gain 2 life', cost: 2, speed: 'instant', sacSelf: true, resolve: async (ctx) => { gainLife(ctx.p, 2); } }],
 });
 C('Jarl of the Forsaken', {
-  mc: '{3}{B}', colors: 'B', types: ['Creature'], sub: 'Zombie Cleric', pt: [3, 2], flash: true, foretell: 2, role: 'creature',
+  mc: '{3}{B}', colors: 'B', types: ['Creature'], sub: 'Zombie Cleric', pt: [3, 2], flash: true, foretell: 2, foretellMC: '{1}{B}', role: 'creature',
   text: 'Flash\nWhen Jarl of the Forsaken enters, destroy target creature or planeswalker an opponent controls that was dealt damage this turn.\nForetell {1}{B}',
   etb: async (c) => {
     await trigger(c, c.ctrl, 'destroy target damaged creature', (ctx) => pickTarget(ctx, 'Destroy target creature an opponent controls that was dealt damage this turn', x => isCreature(x) && x.ctrl !== c.ctrl && x.perm.damagedTurn === G.turn), async (ctx) => { const t = ctx.targets[0]; if (tOK(ctx, t)) await destroy(t); });
@@ -365,7 +364,7 @@ C('Tragic Banshee', {
   },
 });
 const tapperAbility = {
-  id: 'tap', label: '{W}, {T}: Tap target creature', cost: 1, tap: true, speed: 'instant',
+  id: 'tap', label: '{W}, {T}: Tap target creature', cost: '{W}', tap: true, speed: 'instant',
   choose: (ctx) => pickTarget(ctx, 'Tap target creature', c => isCreature(c), cs => AIH.oppThreat(cs.filter(c => !c.tapped), ctx)),
   resolve: async (ctx) => { const t = ctx.targets[0]; if (tOK(ctx, t)) { t.tapped = true; log(`${t.name} becomes tapped.`); } },
 };
@@ -438,13 +437,13 @@ C('Grisly Transformation', {
 });
 
 /* ---------------- ramp ---------------- */
-C('Arcane Signet', { mc: '{2}', types: ['Artifact'], mana: 1, role: 'ramp', text: "{T}: Add one mana of any color in your commander's color identity." });
-C('Orzhov Signet', { mc: '{2}', types: ['Artifact'], mana: 1, role: 'ramp', text: '{1}, {T}: Add {W}{B}.' });
+C('Arcane Signet', { mc: '{2}', types: ['Artifact'], mana: 1, prod: 'ident', role: 'ramp', text: "{T}: Add one mana of any color in your commander's color identity." });
+C('Orzhov Signet', { mc: '{2}', types: ['Artifact'], mana: 1, prod: ['WB'], role: 'ramp', text: '{1}, {T}: Add {W}{B}.' });
 C('Mind Stone', {
   mc: '{2}', types: ['Artifact'], mana: 1, colorlessMana: true, role: 'ramp', text: '{T}: Add {C}.\n{1}, {T}, Sacrifice Mind Stone: Draw a card.',
   abilities: [{ id: 'draw', label: '{1}, {T}, Sacrifice: Draw a card', cost: 1, tap: true, sacSelf: true, speed: 'instant', hideFromAutoStop: true, resolve: async (ctx) => { await drawCards(ctx.p, 1); } }],
 });
-C('Talisman of Hierarchy', { mc: '{2}', types: ['Artifact'], mana: 1, role: 'ramp', text: '{T}: Add {C}.\n{T}: Add {W} or {B}. Talisman of Hierarchy deals 1 damage to you.' });
+C('Talisman of Hierarchy', { mc: '{2}', types: ['Artifact'], mana: 1, prod: ['WBC'], role: 'ramp', text: '{T}: Add {C}.\n{T}: Add {W} or {B}. Talisman of Hierarchy deals 1 damage to you.' });
 C('Sol Ring', { mc: '{1}', types: ['Artifact'], mana: 2, colorlessMana: true, role: 'ramp', text: '{T}: Add {C}{C}.' });
 
 /* ---------------- evasion ---------------- */
@@ -462,7 +461,7 @@ C('Behind the Scenes', {
   mc: '{2}{B}', colors: 'B', types: ['Enchantment'], role: 'evasion',
   text: "Creatures you control have skulk. (They can't be blocked by creatures with greater power.)\n{4}{W}: Creatures you control get +1/+1 until end of turn.",
   anthem: (s, c) => (c.ctrl === s.ctrl && isCreature(c) ? { kw: ['skulk'] } : null),
-  abilities: [{ id: 'pump', label: '{4}{W}: Creatures you control get +1/+1', cost: 5, speed: 'instant', hideFromAutoStop: true, resolve: async (ctx) => { for (const c of creatures(ctx.p)) tmpAdd(c, { p: 1, t: 1 }); } }],
+  abilities: [{ id: 'pump', label: '{4}{W}: Creatures you control get +1/+1', cost: '{4}{W}', speed: 'instant', hideFromAutoStop: true, resolve: async (ctx) => { for (const c of creatures(ctx.p)) tmpAdd(c, { p: 1, t: 1 }); } }],
 });
 C("Prowler's Helm", {
   mc: '{2}', types: ['Artifact', 'Equipment'], equip: 2, role: 'equipment', text: "Equipped creature can't be blocked except by Walls.\nEquip {2}",
@@ -516,9 +515,9 @@ C("Rogue's Passage", {
   types: ['Land'], mana: 1, colorlessMana: true, text: "{T}: Add {C}.\n{4}, {T}: Target creature can't be blocked this turn.",
   abilities: [{ id: 'unb', label: "{4}, {T}: Target creature can't be blocked this turn", cost: 4, tap: true, speed: 'instant', hideFromAutoStop: true, choose: (ctx) => pickTarget(ctx, "Target creature can't be blocked this turn", anyCreature(), cs => AIH.ownBest(cs, ctx)), resolve: async (ctx) => { const t = ctx.targets[0]; if (tOK(ctx, t)) t.tmp.unblockable = true; } }],
 });
-C('Scoured Barrens', { types: ['Land'], mana: 1, entersTapped: true, text: 'Scoured Barrens enters tapped.\nWhen Scoured Barrens enters, you gain 1 life.\n{T}: Add {W} or {B}.', etb: async (c) => { gainLife(c.ctrl, 1); } });
+C('Scoured Barrens', { types: ['Land'], mana: 1, prod: ['WB'], entersTapped: true, text: 'Scoured Barrens enters tapped.\nWhen Scoured Barrens enters, you gain 1 life.\n{T}: Add {W} or {B}.', etb: async (c) => { gainLife(c.ctrl, 1); } });
 C('Orzhov Basilica', {
-  types: ['Land'], mana: 2, entersTapped: true, text: "Orzhov Basilica enters tapped.\nWhen Orzhov Basilica enters, return a land you control to its owner's hand.\n{T}: Add {W}{B}.",
+  types: ['Land'], mana: 2, prod: ['W', 'B'], entersTapped: true, text: "Orzhov Basilica enters tapped.\nWhen Orzhov Basilica enters, return a land you control to its owner's hand.\n{T}: Add {W}{B}.",
   etb: async (c) => {
     const lands = perms(c.ctrl).filter(isLand);
     const k = await chooseCard(c.ctrl, { prompt: 'Orzhov Basilica: return a land you control to hand', cands: lands, ai: cs => cs.find(l => l !== c && l.tapped && isBasic(l)) || cs.find(l => l !== c && isBasic(l)) || cs[0] });

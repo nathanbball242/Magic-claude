@@ -452,8 +452,8 @@ async function discardCard(pi, c) {
   log(`${P(pi).name} discards ${c.name}.`);
   if (c.d.madness != null) {
     moveTo(c, 'exile');
-    const can = canPay(pi, c.d.madness, {});
-    if (can && await chooseYes(pi, { prompt: `Madness: cast ${c.name} for ${c.d.madness}?`, card: c, ai: () => true })) {
+    const can = canPay(pi, costOf(pi, c, { from: 'madness' }), {});
+    if (can && await chooseYes(pi, { prompt: `Madness: cast ${c.name} for ${c.d.madnessMC}?`, card: c, ai: () => true })) {
       const ok = await castSpell(pi, c, 'madness');
       if (ok) return;
     }
@@ -494,48 +494,141 @@ async function fetchBasicsToBF(pi, n, { tapped = true, filter } = {}) {
   return picks;
 }
 
-/* ---------------- mana ---------------- */
+/* ---------------- mana ----------------
+   A cost is { generic, pips: ['W','B','W/B','C',...] }. It also behaves like a
+   number (its total) so older arithmetic keeps working, and prints as {2}{W}{B}.
+   Every mana source is expanded into units; each unit lists the colors it can
+   make ('' = generic only). Payment is an exact search, so pips never fail when
+   a valid tapping exists. */
+const COLORS = 'WUBRG';
+const BASIC_COLOR = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 'G' };
+function mkCost(generic, pips) {
+  return {
+    isCost: true, generic: Math.max(0, generic), pips,
+    valueOf() { return this.generic + this.pips.length; },
+    toString() { return costStr(this); },
+  };
+}
+function costStr(c) {
+  const g = c.generic || (!c.pips.length ? 0 : null);
+  return (g != null ? `{${g}}` : '') + c.pips.map(p => `{${p}}`).join('');
+}
+function toCost(x) {
+  if (x == null) return mkCost(0, []);
+  if (x.isCost) return mkCost(x.generic, x.pips.slice());
+  if (typeof x === 'number') return mkCost(x, []);
+  const m = String(x).match(/\{[^}]+\}/g) || [];
+  let g = 0; const pips = [];
+  for (const sym of m) {
+    const v = sym.slice(1, -1);
+    if (/^\d+$/.test(v)) g += +v;
+    else if (v === 'X') continue;
+    else pips.push(v);
+  }
+  return mkCost(g, pips);
+}
+function addCost(a, b) { a = toCost(a); b = toCost(b); return mkCost(a.generic + b.generic, a.pips.concat(b.pips)); }
+function identityOf(pi) {
+  const cmd = [...P(pi).cz, ...P(pi).bf, ...P(pi).gy, ...P(pi).exile, ...P(pi).hand].find(c => c.isCmd && c.owner === pi);
+  return cmd ? colorsOf(cmd).replace(/[^WUBRG]/g, '') || 'C' : 'C';
+}
+function unitsOf(c) {
+  const d = c.d;
+  if (d.prod === 'ident') return [identityOf(c.ctrl)];
+  if (d.prod) return d.prod.slice();
+  const n = typeof d.mana === 'function' ? d.mana(c) : d.mana || 0;
+  const col = BASIC_COLOR[c.name] || 'C';
+  return Array(n).fill(col);
+}
 function manaSources(pi, opts = {}) {
   const out = [];
   const forsaken = perms(pi).some(c => c.name === 'Forsaken Monument');
   const urza = perms(pi).some(c => c.name === 'Urza, Lord High Artificer');
   const used = new Set();
   for (const c of perms(pi)) {
-    if (c.tapped || c === opts.exclude) continue;
+    if (c.tapped || c === opts.exclude || c.d.treasure) continue;
     if (c.d.mana && !(isCreature(c) && c.sick && !has(c, 'haste'))) {
-      let amt = typeof c.d.mana === 'function' ? c.d.mana(c) : c.d.mana;
-      if (forsaken && c.d.colorlessMana) amt += c.d.colorlessMana === true ? 1 : c.d.colorlessMana;
-      out.push({ c, amt, kind: isLand(c) ? 'land' : 'rock' });
+      const units = unitsOf(c);
+      if (forsaken && c.d.colorlessMana) units.push(...units.filter(u => u === 'C'));
+      out.push({ c, units, kind: isLand(c) ? 'land' : 'rock' });
       used.add(c);
     }
   }
-  const tapArt = urza || opts.improvise;
-  if (tapArt) {
+  if (urza || opts.improvise) {
     const arts = perms(pi).filter(c => isArtifact(c) && !c.tapped && !used.has(c) && c !== opts.exclude && !c.d.treasure);
     arts.sort((a, b) => (isCreature(a) ? 1 : 0) - (isCreature(b) ? 1 : 0));
-    for (const c of arts) { out.push({ c, amt: 1, kind: 'improvise' }); used.add(c); }
+    for (const c of arts) { out.push({ c, units: [urza ? 'U' : ''], kind: 'improvise' }); used.add(c); }
   }
   if (opts.convoke) {
-    for (const c of perms(pi)) if (isCreature(c) && !c.tapped && !used.has(c) && c !== opts.exclude) { out.push({ c, amt: 1, kind: 'convoke' }); used.add(c); }
+    for (const c of perms(pi)) if (isCreature(c) && !c.tapped && !used.has(c) && c !== opts.exclude) { out.push({ c, units: [colorsOf(c).replace(/[^WUBRG]/g, '')], kind: 'convoke' }); used.add(c); }
   }
-  for (const c of perms(pi)) if (c.d.treasure && c !== opts.exclude) out.push({ c, amt: 1, kind: 'treasure' });
+  for (const c of perms(pi)) if (c.d.treasure && c !== opts.exclude) out.push({ c, units: ['WUBRGC'], kind: 'treasure' });
   return out;
 }
-function manaAvail(pi, opts = {}) { return manaSources(pi, opts).reduce((a, s) => a + s.amt, 0); }
-function canPay(pi, n, opts = {}) { return n <= 0 || manaAvail(pi, opts) >= n; }
-async function pay(pi, n, opts = {}) {
-  if (n <= 0) return true;
+function manaAvail(pi, opts = {}) { return manaSources(pi, opts).reduce((a, s) => a + s.units.length, 0); }
+function manaColors(pi) {
+  const r = {};
+  for (const s of manaSources(pi)) for (const u of s.units) for (const ch of u) r[ch] = (r[ch] || 0) + 1;
+  return r;
+}
+const KIND_ORDER = { land: 0, rock: 1, improvise: 2, convoke: 3, treasure: 4 };
+function unitPays(opts, pip) {
+  if (pip.includes('/')) return pip.split('/').some(x => opts.includes(x));
+  return opts.includes(pip);
+}
+function planPayment(pi, cost, opts = {}) {
+  cost = toCost(cost);
+  if (cost.generic <= 0 && !cost.pips.length) return { srcs: [] };
   const srcs = manaSources(pi, opts);
-  const order = { land: 0, rock: 1, improvise: 2, convoke: 3, treasure: 4 };
-  srcs.sort((a, b) => order[a.kind] - order[b.kind] || a.amt - b.amt);
-  let left = n;
-  // exact-fit pass for 2-producers at the end
-  for (const s of srcs) {
-    if (left <= 0) break;
-    if (s.kind === 'treasure') { await sacrificeQuiet(s.c); left -= 1; continue; }
-    s.c.tapped = true; left -= s.amt;
+  const units = [];
+  srcs.forEach((s, si) => s.units.forEach(u => units.push({ si, opts: u, kind: s.kind })));
+  if (units.length < cost.generic + cost.pips.length) return null;
+  const pips = cost.pips.slice().sort((a, b) => units.filter(u => unitPays(u.opts, a)).length - units.filter(u => unitPays(u.opts, b)).length);
+  const usedU = new Set();
+  const tapped = new Set();
+  let best = null;
+  let steps = 0;
+  const finishGeneric = () => {
+    let need = cost.generic;
+    const free = units.map((u, i) => i).filter(i => !usedU.has(i));
+    // units from already-tapped sources are free, then cheapest kinds, least flexible first
+    free.sort((a, b) => (tapped.has(units[a].si) ? 0 : 1) - (tapped.has(units[b].si) ? 0 : 1) || KIND_ORDER[units[a].kind] - KIND_ORDER[units[b].kind] || units[a].opts.length - units[b].opts.length);
+    const extra = new Set(tapped);
+    for (const i of free) { if (need <= 0) break; extra.add(units[i].si); need--; }
+    if (need > 0) return null;
+    return extra;
+  };
+  const dfs = (k) => {
+    if (best || steps++ > 4000) return;
+    if (k === pips.length) { const r = finishGeneric(); if (r) best = r; return; }
+    const pip = pips[k];
+    const cands = units.map((u, i) => i).filter(i => !usedU.has(i) && unitPays(units[i].opts, pip));
+    cands.sort((a, b) => (tapped.has(units[a].si) ? 0 : 1) - (tapped.has(units[b].si) ? 0 : 1) || KIND_ORDER[units[a].kind] - KIND_ORDER[units[b].kind] || units[a].opts.length - units[b].opts.length);
+    for (const i of cands) {
+      const had = tapped.has(units[i].si);
+      usedU.add(i); tapped.add(units[i].si);
+      dfs(k + 1);
+      usedU.delete(i); if (!had) tapped.delete(units[i].si);
+      if (best) return;
+    }
+  };
+  dfs(0);
+  if (!best) return null;
+  return { srcs: [...best].map(i => srcs[i]) };
+}
+function canPay(pi, cost, opts = {}) {
+  cost = toCost(cost);
+  if (cost.generic <= 0 && !cost.pips.length) return true;
+  return !!planPayment(pi, cost, opts);
+}
+async function pay(pi, cost, opts = {}) {
+  const plan = planPayment(pi, cost, opts);
+  if (!plan) return false;
+  for (const s of plan.srcs) {
+    if (s.kind === 'treasure') moveTo(s.c, 'gy');
+    else s.c.tapped = true;
   }
-  return left <= 0;
+  return true;
 }
 async function sacrificeQuiet(c) { moveTo(c, 'gy'); }
 function payOpts(c, ctx = {}) {
@@ -550,21 +643,21 @@ function payOpts(c, ctx = {}) {
 /* ---------------- costs ---------------- */
 function costOf(pi, c, ctx = {}) {
   const d = c.d;
-  let n;
-  if (ctx.free) return 0;
-  if (ctx.alt) n = ctx.alt.cost;
-  else if (ctx.from === 'exile' && d.foretell != null) n = d.foretell;
-  else if (ctx.from === 'madness') n = d.madness;
-  else n = d.cmc;
-  if (ctx.from === 'cz') n += 2 * (P(pi).cmdCasts || 0);
-  n += ctx.extra || 0;
-  if (d.xCount) n += (ctx.x || 0) * d.xCount;
+  if (ctx.free) return mkCost(0, []);
+  let base;
+  if (ctx.alt) base = toCost(ctx.alt.mc);
+  else if (ctx.from === 'exile' && d.foretellMC) base = toCost(d.foretellMC);
+  else if (ctx.from === 'madness') base = toCost(d.madnessMC);
+  else base = toCost(d.mc || '');
+  let g = base.generic;
+  const pips = base.pips.slice();
+  if (ctx.from === 'cz') g += 2 * (P(pi).cmdCasts || 0);
+  if (ctx.extra) { const e = toCost(ctx.extra); g += e.generic; pips.push(...e.pips); }
+  if (d.xCount) g += (ctx.x || 0) * d.xCount;
   let red = 0;
   if (d.costMod && !ctx.alt) red -= d.costMod(c, pi, ctx);
   for (const s of perms(pi)) if (s.d.costReduce) red += s.d.costReduce(s, c);
-  const floor = (ctx.alt || ctx.from === 'madness' || (ctx.from === 'exile' && d.foretell != null)) ? 0 : d.pips;
-  n = Math.max(Math.min(n, floor), n - red);
-  return Math.max(0, n);
+  return mkCost(Math.max(0, g - red), pips);
 }
 
 /* ---------------- events ---------------- */
@@ -800,7 +893,7 @@ async function castSpell(pi, c, from, opt = {}) {
   c.zone = 'stack'; c.zcc++;
   const it = { kind: 'spell', card: c, p: pi, ctx, label: c.name + (ctx.modeLabel ? ` (${ctx.modeLabel})` : ''), id: UID++ };
   G.stack.push(it);
-  log(`${P(pi).name} casts ${stackLabel(it)}${cost ? ` (${cost} mana)` : ''}.`, pi === BOT ? 'bot' : 'me');
+  log(`${P(pi).name} casts ${stackLabel(it)}${+cost ? ` (paid ${cost})` : ''}.`, pi === BOT ? 'bot' : 'me');
   G.tf.spellsCast[pi]++;
   await announceTargets(ctx);
   await emit('cast', { pi, card: c, ctx, it });
@@ -897,7 +990,8 @@ function legalActionsFor(pi, c, zone) {
         acts.push({ type: 'cast', card: c, from: 'hand', label: `Cast`, cost, ok: canPay(pi, cost, payOpts(c, { p: pi })) });
         for (const alt of (c.d.alts || [])) {
           if (alt.can && !alt.can(c, pi)) continue;
-          acts.push({ type: 'cast', card: c, from: 'hand', alt, label: alt.label, cost: alt.cost, ok: canPay(pi, alt.cost, payOpts(c, { p: pi })) });
+          const ac = costOf(pi, c, { p: pi, from: 'hand', alt });
+          acts.push({ type: 'cast', card: c, from: 'hand', alt, label: alt.label, cost: ac, ok: canPay(pi, ac, payOpts(c, { p: pi })) });
         }
       }
       if (c.d.foretell != null && G.active === pi && !castRestricted(pi)) acts.push({ type: 'foretell', card: c, label: 'Foretell', cost: 2, ok: canPay(pi, 2, {}) });

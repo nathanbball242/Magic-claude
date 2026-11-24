@@ -10,6 +10,13 @@ function frameColor(c) {
   if (cols.length > 1) return FRAME.multi;
   return FRAME[cols] || FRAME.none;
 }
+const PIP_BG = { W: '#f3ecd0', U: '#a9cbe9', B: '#a59aa8', R: '#ec9c83', G: '#9fcf98', C: '#cfcfcf' };
+function pipHTML(sym) {
+  if (/^\d+$/.test(sym) || sym === 'X') return `<span class="mp">${sym}</span>`;
+  if (sym.includes('/')) { const [a, b] = sym.split('/'); return `<span class="mp hy" style="--a:${PIP_BG[a]};--b:${PIP_BG[b]}">${a}${b}</span>`; }
+  return `<span class="mp" style="background:${PIP_BG[sym] || '#ccc'}">${sym}</span>`;
+}
+function manaHTML(str) { return (String(str).match(/\{[^}]+\}/g) || []).map(x => pipHTML(x.slice(1, -1))).join(''); }
 function imgURL(c) {
   if (c.token || c.faceHidden) return null;
   const im = c.d.img;
@@ -22,7 +29,7 @@ function typeLine(c) {
 }
 function fallbackHTML(c) {
   const pt = c.d.pt ? `${c.d.pt[0]}/${c.d.pt[1]}` : '';
-  return `<div class="ftxt"><div class="fn">${esc(c.name)}</div>${c.d.mc ? `<div class="fc">${esc(c.d.mc)}</div>` : ''}<div class="ft">${esc(typeLine(c))}</div><div class="fr">${esc(c.d.text || '')}</div>${pt ? `<div class="fc">${pt}</div>` : ''}</div>`;
+  return `<div class="ftxt"><div class="fn">${esc(c.name)}</div>${c.d.mc ? `<div class="fc">${manaHTML(c.d.mc)}</div>` : ''}<div class="ft">${esc(typeLine(c))}</div><div class="fr">${esc(c.d.text || '')}</div>${pt ? `<div class="fc">${pt}</div>` : ''}</div>`;
 }
 function imgHTML(c) {
   const u = imgURL(c);
@@ -170,12 +177,12 @@ const UI = {
       <span class="chip">Hand ${bot.hand.length}</span><span class="chip">Lib ${bot.library.length}</span>
       <button class="chip" data-zone="gy" data-pi="1">GY ${bot.gy.length}</button><button class="chip" data-zone="exile" data-pi="1">Exile ${bot.exile.length}</button>
       ${czChip(BOT)}${G.monarch === BOT ? '<span class="chip gold">Monarch</span>' : ''}${bot.energy ? `<span class="chip">E ${bot.energy}</span>` : ''}
-      <span class="chip">Mana ${manaAvail(BOT)}</span>`;
+      <span class="chip">Mana ${manaAvail(BOT)}${UI.colorSummary(BOT)}</span>`;
     const mana = manaAvail(HUMAN);
     UI.el('myBar').innerHTML = `
       <span class="life ${me.life <= 10 ? 'low' : ''}">${me.life}</span>
       <span class="chip ${dmgFrom(HUMAN) >= 14 ? 'warn' : ''}" title="Commander damage taken">Cmd ${dmgFrom(HUMAN)}/21</span>
-      <span class="chip gold" title="Untapped mana">Mana ${mana}</span>
+      <span class="chip gold" title="Untapped mana by color">Mana ${mana}${UI.colorSummary(HUMAN)}</span>
       ${czChip(HUMAN)}
       <button class="chip" data-zone="gy" data-pi="0">GY ${me.gy.length}</button><button class="chip" data-zone="exile" data-pi="0">Exile ${me.exile.length}</button>
       <span class="chip">Lib ${me.library.length}</span>${G.monarch === HUMAN ? '<span class="chip gold">Monarch</span>' : ''}
@@ -303,6 +310,11 @@ const UI = {
   },
 
   /* ---------------- taps ---------------- */
+  colorSummary(pi) {
+    const m = manaColors(pi);
+    const parts = [...'WUBRGC'].filter(k => m[k]).map(k => `${pipHTML(k)}${m[k]}`);
+    return parts.length ? ` <span class="msum">${parts.join(' ')}</span>` : '';
+  },
   onCardTap(c) {
     const m = UI.mode, d = UI.data;
     if (m === 'pick') {
@@ -351,7 +363,7 @@ const UI = {
     const acts = UI.actionsFor(c);
     UI.openSheet(`<div class="row-btns" style="justify-content:space-between"><h3>${esc(c.faceHidden ? 'Face-down card' : c.name)}</h3><button class="btn" id="scClose">Close</button></div>
       ${UI.detailHTML(c)}
-      ${acts.length ? `<div class="acts">${acts.map((a, i) => `<button class="btn ${a.ok !== false ? 'primary' : ''}" data-ai="${i}" ${a.ok === false ? 'disabled' : ''}><span>${esc(a.label)}</span>${a.type !== 'land' ? `<span class="cost">${a.cost != null ? a.cost + ' mana' : ''}</span>` : ''}</button>`).join('')}</div>` : ''}`, true);
+      ${acts.length ? `<div class="acts">${acts.map((a, i) => `<button class="btn ${a.ok !== false ? 'primary' : ''}" data-ai="${i}" ${a.ok === false ? 'disabled' : ''}><span>${esc(a.label)}</span>${a.type !== 'land' ? `<span class="cost">${a.cost != null ? (+a.cost === 0 ? 'free' : manaHTML(String(toCost(a.cost)))) : ''}</span>` : ''}</button>`).join('')}</div>` : ''}`, true);
     UI.el('scClose').onclick = () => UI.closeSheet();
     UI.el('sheet').querySelectorAll('[data-ai]').forEach(e => e.onclick = () => { const a = acts[+e.dataset.ai]; UI.closeSheet(); UI.resolve(a); });
   },
@@ -368,7 +380,7 @@ const UI = {
     if (c.zone === 'exile' && c.foretold != null) lines.push(`Foretold on turn ${c.foretold}`);
     if (c.isCmd) lines.push(`Commander · tax ${2 * (P(c.owner).cmdCasts || 0)}`);
     const big = `<div class="bigcard" style="--frame:${frameColor(c)}">${fallbackHTML(c).replace('class="ftxt"', 'class="ftxt"')}${imgHTML(c)}</div>`;
-    return `<div class="detail">${big}<div class="oracle"><div>${esc(c.d.mc || '')} ${esc(typeLine(c))}${c.d.pt ? ` · ${c.d.pt[0]}/${c.d.pt[1]}` : ''}</div><div style="margin-top:6px">${esc(c.d.text || '')}</div>${lines.length ? `<div class="meta">${lines.map(esc).map(x => `<span>${x}</span>`).join('')}</div>` : ''}</div></div>`;
+    return `<div class="detail">${big}<div class="oracle"><div>${manaHTML(c.d.mc || '')} ${esc(typeLine(c))}${c.d.pt ? ` · ${c.d.pt[0]}/${c.d.pt[1]}` : ''}</div><div style="margin-top:6px">${esc(c.d.text || '')}</div>${lines.length ? `<div class="meta">${lines.map(esc).map(x => `<span>${x}</span>`).join('')}</div>` : ''}</div></div>`;
   },
   openZone(zone, pi) {
     const cards = P(pi)[zone].slice().reverse().map(c => (pi === BOT && c.faceDown ? Object.assign(Object.create(c), { faceHidden: true, name: 'Foretold card', d: { ...c.d, text: 'A face-down foretold card.', mc: '', img: null } }) : c));

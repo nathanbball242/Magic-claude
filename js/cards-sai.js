@@ -18,7 +18,7 @@ C('Sai, Master Thopterist', {
   text: 'Whenever you cast an artifact spell, create a 1/1 colorless Thopter artifact creature token with flying.\n{1}{U}, Sacrifice two artifacts: Draw a card.',
   on: { cast: async (s, { pi, card }) => { if (pi === s.ctrl && isArtifact(card)) await createToken(s.ctrl, 'Thopter', 1); } },
   abilities: [{
-    id: 'draw', label: '{1}{U}, Sacrifice two artifacts: Draw a card', cost: 2, speed: 'instant', hideFromAutoStop: true,
+    id: 'draw', label: '{1}{U}, Sacrifice two artifacts: Draw a card', cost: '{1}{U}', speed: 'instant', hideFromAutoStop: true,
     can: (c) => artifactsOf(c.ctrl).length >= 2,
     choose: async (ctx) => { const picks = await chooseCards(ctx.p, { prompt: 'Sacrifice two artifacts', cands: artifactsOf(ctx.p), min: 2, max: 2, ai: cs => AIH.cheapArtifacts(cs).slice(0, 2) }); if (picks.length < 2) return false; ctx.sacs = picks; return true; },
     preCost: async (ctx) => { await killBatch(ctx.sacs, 'sac'); },
@@ -122,11 +122,11 @@ C('Aether Spellbomb', {
   mc: '{1}', types: ['Artifact'], role: 'utility',
   text: "{U}, Sacrifice Aether Spellbomb: Return target creature to its owner's hand.\n{1}, Sacrifice Aether Spellbomb: Draw a card.",
   abilities: [
-    { id: 'bounce', label: "{U}, Sacrifice: return target creature to owner's hand", cost: 1, sacSelf: true, speed: 'instant', choose: (ctx) => pickTarget(ctx, 'Return target creature', anyCreature()), resolve: async (ctx) => { const t = ctx.targets[0]; if (tOK(ctx, t)) await bounce(t); } },
+    { id: 'bounce', label: "{U}, Sacrifice: return target creature to owner's hand", cost: '{U}', sacSelf: true, speed: 'instant', choose: (ctx) => pickTarget(ctx, 'Return target creature', anyCreature()), resolve: async (ctx) => { const t = ctx.targets[0]; if (tOK(ctx, t)) await bounce(t); } },
     { id: 'draw', label: '{1}, Sacrifice: Draw a card', cost: 1, sacSelf: true, speed: 'instant', hideFromAutoStop: true, resolve: async (ctx) => { await drawCards(ctx.p, 1); } },
   ],
 });
-C("Cultivator's Caravan", { mc: '{3}', types: ['Artifact', 'Vehicle'], sub: 'Vehicle', pt: [5, 5], mana: 1, crew: 3, role: 'ramp', text: '{T}: Add one mana of any color.\nCrew 3' });
+C("Cultivator's Caravan", { mc: '{3}', types: ['Artifact', 'Vehicle'], sub: 'Vehicle', pt: [5, 5], mana: 1, prod: ['WUBRG'], crew: 3, role: 'ramp', text: '{T}: Add one mana of any color.\nCrew 3' });
 C('Forsaken Monument', {
   mc: '{5}', types: ['Legendary', 'Artifact'], role: 'pump',
   text: 'Colorless creatures you control get +2/+2.\nWhenever you tap a permanent for {C}, add an additional {C}.\nWhenever you cast a colorless spell, you gain 2 life.',
@@ -151,7 +151,7 @@ C("Mind's Eye", {
   mc: '{5}', types: ['Artifact'], role: 'draw', text: 'Whenever an opponent draws a card, you may pay {1}. If you do, draw a card.',
   on: { draw: async (s, { pi }) => { if (pi === s.ctrl || !canPay(s.ctrl, 1, {})) return; if (await chooseYes(s.ctrl, { prompt: "Mind's Eye: pay 1 to draw?", ai: () => G.active !== s.ctrl || manaAvail(s.ctrl) > 3 })) { await pay(s.ctrl, 1, {}); await drawCards(s.ctrl, 1); } } },
 });
-C('Misleading Signpost', { mc: '{2}{U}', colors: 'U', types: ['Artifact'], flash: true, mana: 1, role: 'ramp', text: 'Flash\nWhen Misleading Signpost enters during the declare attackers step, you may reselect which player or permanent target attacking creature is attacking. (It can\'t attack its controller or their permanents.)\n{T}: Add {U}.' });
+C('Misleading Signpost', { mc: '{2}{U}', colors: 'U', types: ['Artifact'], flash: true, mana: 1, prod: ['U'], role: 'ramp', text: 'Flash\nWhen Misleading Signpost enters during the declare attackers step, you may reselect which player or permanent target attacking creature is attacking. (It can\'t attack its controller or their permanents.)\n{T}: Add {U}.' });
 C('Nettlecyst', {
   mc: '{3}', types: ['Artifact', 'Equipment'], equip: 2, role: 'equipment',
   text: 'Living weapon (When this Equipment enters, create a 0/0 black Phyrexian Germ creature token, then attach this to it.)\nEquipped creature gets +1/+1 for each artifact and/or enchantment you control.\nEquip {2}',
@@ -186,7 +186,7 @@ C('Soul-Guide Lantern', {
 C("Tamiyo's Logbook", {
   mc: '{2}{U}', colors: 'U', types: ['Artifact'], sub: 'Book', role: 'draw',
   text: '{5}{U}, {T}: Draw a card. This ability costs {1} less to activate for each other artifact you control.',
-  abilities: [{ id: 'draw', label: '{5}{U}, {T}: Draw a card (costs less per artifact)', tap: true, speed: 'instant', hideFromAutoStop: true, cost: (c) => Math.max(1, 6 - (artCount(c.ctrl) - 1)), resolve: async (ctx) => { await drawCards(ctx.p, 1); } }],
+  abilities: [{ id: 'draw', label: '{5}{U}, {T}: Draw a card (costs less per artifact)', tap: true, speed: 'instant', hideFromAutoStop: true, cost: (c) => `{${Math.max(0, 5 - (artCount(c.ctrl) - 1))}}{U}`, resolve: async (ctx) => { await drawCards(ctx.p, 1); } }],
 });
 C('Thopter Fabricator', {
   mc: '{2}{U}', colors: 'U', types: ['Artifact', 'Vehicle'], sub: 'Vehicle', pt: [4, 4], kw: ['flying'], crew: 2, role: 'ramp',
@@ -272,7 +272,7 @@ C('Urza, Lord High Artificer', {
 C('Cyclonic Rift', {
   mc: '{1}{U}', colors: 'U', types: ['Instant'], role: 'removal', threat: 'bounce',
   text: "Return target nonland permanent you don't control to its owner's hand.\nOverload {6}{U}",
-  alts: [{ key: 'overload', label: "Overload (return each nonland permanent you don't control)", cost: 7, choose: async (ctx) => { ctx.modeLabel = 'overload'; return true; } }],
+  alts: [{ key: 'overload', label: "Overload (return each nonland permanent you don't control)", mc: '{6}{U}', choose: async (ctx) => { ctx.modeLabel = 'overload'; return true; } }],
   choose: async (ctx) => { if (ctx.alt) return true; return await pickTarget(ctx, "Return target nonland permanent you don't control", c => !isLand(c) && c.ctrl !== ctx.p); },
   spell: async (ctx) => {
     if (ctx.alt) { for (const c of allPerms().filter(c => !isLand(c) && c.ctrl !== ctx.p)) await bounce(c); }
@@ -304,12 +304,12 @@ C('Retrofitter Foundry', {
     { id: 'big', label: '{T}, Sacrifice a Thopter: 4/4 Construct token', cost: 0, tap: true, speed: 'instant', hideFromAutoStop: true, can: c => creatures(c.ctrl).some(x => hasSub(x, 'Thopter') && x.token), preCost: async (ctx) => { await sacrifice(creatures(ctx.p).find(x => hasSub(x, 'Thopter') && x.token)); }, resolve: async (ctx) => { await createToken(ctx.p, 'Construct 4/4', 1); } },
   ],
 });
-C('Glimmervoid', { types: ['Land'], mana: 1, text: 'At the beginning of the end step, if you control no artifacts, sacrifice Glimmervoid.\n{T}: Add one mana of any color.', on: { endStep: async (s) => { if (!artCount(s.ctrl)) await sacrifice(s); } } });
+C('Glimmervoid', { types: ['Land'], mana: 1, prod: ['WUBRG'], text: 'At the beginning of the end step, if you control no artifacts, sacrifice Glimmervoid.\n{T}: Add one mana of any color.', on: { endStep: async (s) => { if (!artCount(s.ctrl)) await sacrifice(s); } } });
 C('Cranial Plating', {
   mc: '{2}', types: ['Artifact', 'Equipment'], equip: 1, role: 'equipment',
   text: 'Equipped creature gets +1/+0 for each artifact you control.\n{B}{B}: Attach Cranial Plating to target creature you control.\nEquip {1}',
   attachBuff: (s) => ({ p: artCount(s.ctrl) }),
-  abilities: [{ id: 'bb', label: '{B}{B}: Attach to target creature you control', cost: 2, speed: 'instant', hideFromAutoStop: true, choose: (ctx) => pickTarget(ctx, 'Attach to target creature you control', c => isCreature(c) && c.ctrl === ctx.p, cs => AIH.equipTarget(ctx.card, cs)), resolve: async (ctx) => { const t = ctx.targets[0]; if (tOK(ctx, t)) attach(ctx.card, t); } }],
+  abilities: [{ id: 'bb', label: '{B}{B}: Attach to target creature you control', cost: '{B}{B}', speed: 'instant', hideFromAutoStop: true, choose: (ctx) => pickTarget(ctx, 'Attach to target creature you control', c => isCreature(c) && c.ctrl === ctx.p, cs => AIH.equipTarget(ctx.card, cs)), resolve: async (ctx) => { const t = ctx.targets[0]; if (tOK(ctx, t)) attach(ctx.card, t); } }],
 });
 C("Liberator, Urza's Battlethopter", {
   mc: '{3}', types: ['Legendary', 'Artifact', 'Creature'], sub: 'Thopter', pt: [1, 2], kw: ['flying'], flash: true, role: 'creature',

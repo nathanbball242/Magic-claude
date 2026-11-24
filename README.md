@@ -8,7 +8,7 @@ Open `index.html` in a browser (no build step, no server needed). Card art loads
 - Your hand is along the bottom, battlefields stacked above it, bot on top.
 - Tap any card to see it full size with its Oracle text and every action you can take with it right now (cast, play land, activate, equip, foretell).
 - Targeting: tap the glowing card. Attacking: tap creatures to toggle, then Attack. Blocking: tap your creature, then the attacker.
-- Mana is paid automatically from untapped lands, rocks and Treasures. Mana is generic for now (colors later).
+- Mana is colored. Costs show real symbols, and your mana chip shows how many of each color you can make. Payment is automatic and picks the tapping that keeps your flexible sources (Scoured Barrens, Talisman, Treasures) open when a basic will do. Hybrid {W/B}, {C}, Orzhov Basilica's {W}{B}, Arcane Signet's commander colors, Forsaken Monument, Urza, improvise and convoke are all handled.
 - You get a response window when the bot casts removal or a wipe, targets your stuff, at its beginning of combat, when it attacks, after blocks and at its end step. Turn on "respond to every bot spell" in the menu for more.
 - Bounty counters show as a gold skull badge. Shay's `{1}` strip ability lives on Shay's card.
 
@@ -26,6 +26,7 @@ Commander first when affordable, then cheapest spells first. Holds protection an
 - `tools/sim.js` headless bot-vs-bot batch test: `node tools/sim.js 50 both`
 - `tools/ui-smoke.js`, `tools/ui-flow.js` Playwright browser tests
 - `tools/build-artifact.js` one-file build
+- The bot plays the land and fetches the basic its hand needs most by color.
 
 ## Simplifications
-Generic mana. Venture always walks Lost Mine of Phandelver (Cave Entrance, Goblin Lair, Dark Pool, Temple). Misleading Signpost's reselect does nothing in 1v1. Ichormoon Gauntlet's planeswalker text is unused (no planeswalkers). Arcane Denial's draws are automatic. Triggered abilities without targets resolve immediately; targeted ones use the stack so you can respond.
+Venture always walks Lost Mine of Phandelver (Cave Entrance, Goblin Lair, Dark Pool, Temple). Misleading Signpost's reselect does nothing in 1v1. Ichormoon Gauntlet's planeswalker text is unused (no planeswalkers). Arcane Denial's draws are automatic. Triggered abilities without targets resolve immediately; targeted ones use the stack so you can respond.

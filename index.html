@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shay Cormac Duel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<!--BODY-->
+<div id="app">
+  <div id="start">
+    <div class="start-inner">
+      <div class="eyebrow">Commander 1v1 · 40 life · 21 commander damage</div>
+      <h1>Shay Cormac <span>vs the bot</span></h1>
+      <p class="lede">Tag their creatures with bounty counters, then wipe. You pilot your purchased Shay build. The bot plays an upgraded precon and follows the rules from your simulations.</p>
+      <div class="eyebrow">Choose the opponent</div>
+      <div class="opp-pick">
+        <button class="opp-card" data-deck="cloud" aria-pressed="true"><b>Limit Break</b><span class="pips">R G W</span><small>Cloud, Ex-SOLDIER. Equipment voltron with 20 upgrades: Swords, Embercleave, Teferi's Protection, Heroic Intervention, Smothering Tithe.</small></button>
+        <button class="opp-card" data-deck="sai" aria-pressed="false"><b>Keen Engineering</b><span class="pips">U</span><small>Sai, Master Thopterist. Artifact thopter swarm with 20 upgrades: Urza, Rhystic Study, Cyclonic Rift, Fierce Guardianship, counterspells.</small></button>
+      </div>
+      <div class="settings">
+        <label><input type="checkbox" id="setStop"> Let me respond to every bot spell (by default you get a window for removal, wipes, attacks and the bot's end step)</label>
+        <label><input type="checkbox" id="setTithe"> Ask me before paying for Rhystic Study, Mystic Remora and Smothering Tithe</label>
+        <label>Bot speed <select id="setSpeed"><option value="900">Slow</option><option value="450">Normal</option><option value="120">Fast</option></select></label>
+      </div>
+      <button class="big-btn" id="startBtn">Shuffle up</button>
+      <details class="decks"><summary>Deck lists</summary><div class="decklist" id="deckLists"></div></details>
+    </div>
+  </div>
+  <div id="game" hidden>
+    <header class="pbar" id="oppBar"></header>
+    <main id="board">
+      <section class="bf opp">
+        <div class="row lands" id="oppLands"></div>
+        <div class="row others" id="oppOthers"></div>
+        <div class="row creatures" id="oppCreatures"></div>
+      </section>
+      <section id="strip"><div id="phases"></div><div id="stack"></div><div id="ticker"></div></section>
+      <section class="bf me">
+        <div class="row creatures" id="myCreatures"></div>
+        <div class="row others" id="myOthers"></div>
+        <div class="row lands" id="myLands"></div>
+      </section>
+    </main>
+    <div id="prompt"><div id="promptText"></div><div id="promptBtns"></div></div>
+    <footer class="pbar me" id="myBar"></footer>
+    <div id="hand"></div>
+  </div>
+  <div id="sheet" hidden></div>
+  <div id="toast" hidden></div>
+</div>
+<!--/BODY-->
+<script src="js/engine.js"></script>
+<script src="js/cards-shay.js"></script>
+<script src="js/cards-cloud.js"></script>
+<script src="js/cards-sai.js"></script>
+<script src="js/decks.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

@@ -5,7 +5,8 @@
    Cruel Celebrant live in cards-shay.js because your Elenda build uses them too.
    ===================================================================== */
 const ownDeath = (s, lki) => lki.ctrl === s.ctrl;
-const drainEach = (s, n, why) => { const o = opp(s.ctrl); loseLife(o, n); gainLife(s.ctrl, n); log(`${why}: ${P(o).name} loses ${n}, ${P(s.ctrl).name} gains ${n}.`); };
+const drainEach = (s, n, why) => { const os = opps(s.ctrl); for (const o of os) loseLife(o, n); gainLife(s.ctrl, n); log(`${why}: ${os.length > 1 ? 'each opponent loses' : P(os[0]).name + ' loses'} ${n}, ${P(s.ctrl).name} gains ${n}.`); };
+const drainTarget = (s, n, why) => { const o = pickOpp(s.ctrl); loseLife(o, n); gainLife(s.ctrl, n); log(`${why}: ${P(o).name} loses ${n}, ${P(s.ctrl).name} gains ${n}.`); };
 const sacOutlet = (label, resolve) => ({
   id: 'sac', label, cost: 0, speed: 'instant', hideFromAutoStop: true,
   can: (c) => creatures(c.ctrl).length > 0,
@@ -60,7 +61,7 @@ C('Kalastria Highborn', {
       if (!canPay(s.ctrl, '{B}', {})) return;
       if (!(await chooseYes(s.ctrl, { prompt: 'Kalastria Highborn: pay {B} to drain 2?', ai: () => true }))) return;
       await pay(s.ctrl, '{B}', {});
-      drainEach(s, 2, 'Kalastria Highborn');
+      drainTarget(s, 2, 'Kalastria Highborn');
     },
   },
 });
@@ -69,7 +70,7 @@ C('Elas il-Kor, Sadistic Pilgrim', {
   text: 'Deathtouch\nWhenever another creature you control enters, you gain 1 life.\nWhenever another creature you control dies, each opponent loses 1 life.',
   on: {
     etb: async (s, { card }) => { if (card !== s && card.ctrl === s.ctrl && isCreature(card)) gainLife(s.ctrl, 1); },
-    dies: async (s, { dead, lki, mult }) => { if (dead !== s && ownDeath(s, lki)) { loseLife(opp(s.ctrl), mult); log(`Elas il-Kor: ${P(opp(s.ctrl)).name} loses ${mult}.`); } },
+    dies: async (s, { dead, lki, mult }) => { if (dead !== s && ownDeath(s, lki)) { for (const o of opps(s.ctrl)) loseLife(o, mult); log(`Elas il-Kor: each opponent loses ${mult}.`); } },
   },
 });
 C('Ministrant of Obligation', {
@@ -85,7 +86,7 @@ C('Midnight Reaper', {
 C('Falkenrath Noble', {
   mc: '{3}{B}', colors: 'B', types: ['Creature'], sub: 'Vampire Warrior', pt: [2, 2], kw: ['flying'], role: 'creature',
   text: 'Flying\nWhenever Falkenrath Noble or another creature dies, target player loses 1 life and you gain 1 life.',
-  on: { dies: async (s, { mult }) => { drainEach(s, mult, 'Falkenrath Noble'); } },
+  on: { dies: async (s, { mult }) => { drainTarget(s, mult, 'Falkenrath Noble'); } },
 });
 C('Pitiless Plunderer', {
   mc: '{3}{B}', colors: 'B', types: ['Creature'], sub: 'Human Pirate', pt: [1, 4], role: 'creature',
@@ -103,10 +104,9 @@ C('Butcher of Malakir', {
   on: {
     dies: async (s, { lki, mult }) => {
       if (!ownDeath(s, lki)) return;
-      const o = opp(s.ctrl);
-      for (let i = 0; i < mult; i++) {
+      for (let i = 0; i < mult; i++) for (const o of opps(s.ctrl)) {
         const cs = creatures(o);
-        if (!cs.length) return;
+        if (!cs.length) continue;
         const k = await chooseCard(o, { prompt: 'Butcher of Malakir: sacrifice a creature', cands: cs, ai: x => AIH.weakest(x) });
         if (k) await sacrifice(k);
       }
@@ -135,7 +135,7 @@ C('Sun Titan', {
 C('Massacre Wurm', {
   mc: '{3}{B}{B}{B}', colors: 'B', types: ['Creature'], sub: 'Phyrexian Wurm', pt: [6, 5], role: 'creature',
   text: 'When Massacre Wurm enters, creatures your opponents control get -2/-2 until end of turn.\nWhenever a creature an opponent controls dies, that player loses 2 life.',
-  etb: async (c) => { for (const x of creatures(opp(c.ctrl))) tmpAdd(x, { p: -2, t: -2 }); log('Massacre Wurm: opposing creatures get -2/-2.', 'warn'); await sba(); },
+  etb: async (c) => { for (const x of opps(c.ctrl).flatMap(creatures)) tmpAdd(x, { p: -2, t: -2 }); log('Massacre Wurm: opposing creatures get -2/-2.', 'warn'); await sba(); },
   on: { dies: async (s, { lki, mult }) => { if (lki.ctrl !== s.ctrl) { loseLife(lki.ctrl, 2 * mult); log(`Massacre Wurm: ${P(lki.ctrl).name} loses ${2 * mult}.`); } } },
 });
 C('Morbid Opportunist', {
@@ -172,7 +172,7 @@ C('Toxic Deluge', {
   mc: '{2}{B}', colors: 'B', types: ['Sorcery'], role: 'wipe', text: 'As an additional cost to cast this spell, pay X life.\nAll creatures get -X/-X until end of turn.',
   choose: async (ctx) => {
     const max = P(ctx.p).life - 1; if (max < 1) return false;
-    const want = Math.max(1, ...creatures(opp(ctx.p)).map(c => tou(c)));
+    const want = Math.max(1, ...opps(ctx.p).flatMap(creatures).map(c => tou(c)));
     const x = await chooseNumber(ctx.p, { prompt: 'Toxic Deluge: pay how much life (X)?', min: 1, max: Math.min(max, 20), ai: () => Math.min(want, max) });
     if (x == null) return false; ctx.x = x; ctx.modeLabel = `X = ${x}`; return true;
   },

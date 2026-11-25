@@ -53,6 +53,16 @@ const ELENDA_BOT_BASE = [
 ];
 const ELENDA_BOT_UPGRADES = ['Teysa Karlov', 'Bitterblossom', 'Sanguine Bond', 'Dark Prophecy', 'Smothering Tithe', "Teferi's Protection", 'Flawless Maneuver', 'Toxic Deluge', 'Infernal Grasp', 'Demonic Tutor', 'Vampiric Tutor', 'Swiftfoot Boots', 'Darksteel Plate', 'Lightning Greaves', 'Ghostly Prison', 'Secure the Wastes', 'Despark', "Wayfarer's Bauble", 'Morbid Opportunist', 'Ophiomancer'];
 
+
+/* Revival Trance (FINAL FANTASY VI) and Wakanda Forever: official lists from MTGJSON (Wizards' decklist pages) */
+const RT_PRECON = [["Angel of the Ruins", 1], ["Anger", 1], ["Arcane Signet", 1], ["Archfiend of Depravity", 1], ["Ash Barrens", 1], ["Banon, the Returners' Leader", 1], ["Battlefield Forge", 1], ["Bedevil", 1], ["Big Score", 1], ["Celes, Rune Knight", 1], ["Clifftop Retreat", 1], ["Coin of Fate", 1], ["Combustible Gearhulk", 1], ["Command Tower", 1], ["Commander's Sphere", 1], ["Crackling Doom", 1], ["Cyan, Vengeful Samurai", 1], ["Demolition Field", 1], ["Desolate Mire", 1], ["Dragonskull Summit", 1], ["Edgar, Master Machinist", 1], ["Espers to Magicite", 1], ["Evolving Wilds", 1], ["Exotic Orchard", 1], ["Fetid Heath", 1], ["Flayer of the Hatebound", 1], ["Foreboding Ruins", 1], ["Furycalm Snarl", 1], ["Gau, Feral Youth", 1], ["General Leo Cristophe", 1], ["Geothermal Bog", 1], ["Gogo, Mysterious Mime", 1], ["Graven Cairns", 1], ["High Market", 1], ["Interceptor, Shadow's Hound", 1], ["Isolated Chapel", 1], ["Kefka, Dancing Mad", 1], ["Key to the City", 1], ["Laughing Mad", 1], ["Legions to Ashes", 1], ["Locke, Treasure Hunter", 1], ["Meteor Golem", 1], ["Millikin", 1], ["Mind Stone", 1], ["Mog, Moogle Warrior", 1], ["Morbid Opportunist", 1], ["Mortify", 1], ["Mountain", 3], ["Night's Whisper", 1], ["Nomad Outpost", 1], ["Palace Jailer", 1], ["Path of Ancestry", 1], ["Phoenix Down", 1], ["Pitiless Plunderer", 1], ["Plains", 4], ["Priest of Fell Rites", 1], ["Reanimate", 1], ["Rejoin the Fight", 1], ["Rise of the Dark Realms", 1], ["Rogue's Passage", 1], ["Rugged Prairie", 1], ["Ruin Grinder", 1], ["Ruinous Ultimatum", 1], ["Sabin, Master Monk", 1], ["Sacred Peaks", 1], ["Sepulchral Primordial", 1], ["Setzer, Wandering Gambler", 1], ["Shadow, Mysterious Assassin", 1], ["Shadowblood Ridge", 1], ["Shineshadow Snarl", 1], ["Siegfried, Famed Swordsman", 1], ["Smoldering Marsh", 1], ["Snort", 1], ["Sol Ring", 1], ["Solemn Simulacrum", 1], ["Stitch Together", 1], ["Stitcher's Supplier", 1], ["Strago and Relm", 1], ["Sulfurous Springs", 1], ["Summon: Esper Valigarmanda", 1], ["Sun Titan", 1], ["Sunlit Marsh", 1], ["Sunscorched Divide", 1], ["Swamp", 3], ["Swiftfoot Boots", 1], ["Talisman of Conviction", 1], ["Talisman of Indulgence", 1], ["The Falcon, Airship Restored", 1], ["The Warring Triad", 1], ["Tragic Arrogance", 1], ["Umaro, Raging Yeti", 1], ["Wayfarer's Bauble", 1]];
+const RT_CUT = ['Gogo, Mysterious Mime', 'Strago and Relm', 'Summon: Esper Valigarmanda', 'Mog, Moogle Warrior', 'Setzer, Wandering Gambler', 'Kefka, Dancing Mad', 'Locke, Treasure Hunter', "Banon, the Returners' Leader", 'Edgar, Master Machinist', 'Gau, Feral Youth', 'Coin of Fate', 'Rejoin the Fight', 'Espers to Magicite', 'Tragic Arrogance', 'Key to the City', 'Millikin', 'The Warring Triad', 'Big Score', 'Laughing Mad', 'Snort'];
+const RT_UPGRADES = ['Entomb', 'Buried Alive', 'Exhume', 'Persist', 'Victimize', 'Living Death', 'Unburial Rites', 'Sheoldred, Whispering One', 'Archon of Cruelty', 'Deadly Rollick', 'Teysa Karlov', 'Blood Artist', 'Smothering Tithe', 'Swords to Plowshares', 'Anguished Unmaking', 'Vindicate', 'Toxic Deluge', "Teferi's Protection", 'Lightning Greaves', 'Phyrexian Arena'];
+const WK_PRECON = [["Ancestral Communion", 1], ["Arcane Signet", 1], ["Bast, Panther Goddess", 1], ["Beast Within", 1], ["Birds of Paradise", 1], ["Bountiful Promenade", 1], ["Canopy Vista", 1], ["Command Tower", 1], ["Conduit of Worlds", 1], ["Coveted Jewel", 1], ["Dispatch", 1], ["Divine Visitation", 1], ["Dora Milaje Elite", 1], ["Everett K. Ross, Hapless Attaché", 1], ["Evolving Wilds", 1], ["Fight for the Throne", 1], ["Fleecemane Lion", 1], ["Forest", 12], ["Fortified Village", 1], ["Generous Gift", 1], ["Gilded Lotus", 1], ["Greater Good", 1], ["Hammer of Nazahn", 1], ["Harmonize", 1], ["Hatut Zeraze Strike Force", 1], ["Heart-Shaped Herb", 1], ["Helm of the Host", 1], ["Ingenious Smith", 1], ["Kimoyo Beads", 1], ["King Solomon's Frogs", 1], ["Loyal Guardian", 1], ["Loyal Retainers", 1], ["M'Baku, Jabari Chieftain", 1], ["Martial Coup", 1], ["Metalwork Colossus", 1], ["Meteor Golem", 1], ["Midnight Angel Armor", 1], ["Mind's Eye", 1], ["N'Yami-Class Mother Ship", 1], ["Nakia, Wakandan Operative", 1], ["Nature's Lore", 1], ["Okoye, Mighty and Adored", 1], ["Overwhelming Stampede", 1], ["Palace Jailer", 1], ["Panther Habit", 1], ["Panther Robot", 1], ["Path of Ancestry", 1], ["Plains", 12], ["Queen Mother Ramonda", 1], ["Razorverge Thicket", 1], ["Royal Talon Fighter Jet", 1], ["Scattered Groves", 1], ["Scavenger Grounds", 1], ["Scourglass", 1], ["Shuri's Fabricator", 1], ["Shuri, the Black Panther", 1], ["Sol Ring", 1], ["Solemn Simulacrum", 1], ["Storm, Queen of Wakanda", 1], ["Sungrass Prairie", 1], ["Sunpetal Grove", 1], ["Sword of the Animist", 1], ["T'Chaka, Venerable King", 1], ["Terramorphic Expanse", 1], ["The Great Mound", 1], ["The Spear of Bashenga", 1], ["Thran Dynamo", 1], ["Throne of the High City", 1], ["Trading Post", 1], ["Valorous Stance", 1], ["Vanquish the Horde", 1], ["Vibranium Mining Mech", 1], ["Vibranium Strike Gauntlets", 1], ["W'Kabi, Shield of the Nation", 1], ["Wakanda Forever!", 1], ["Whispersilk Cloak", 1], ["Zuri, Warrior of Wakanda", 1]];
+const WK_CUT = ['Conduit of Worlds', 'Greater Good', 'Trading Post', 'Scourglass', 'Heart-Shaped Herb', 'Panther Habit', 'Hatut Zeraze Strike Force', 'Ancestral Communion', 'Coveted Jewel', 'Helm of the Host', 'Metalwork Colossus', 'Loyal Retainers', 'Divine Visitation', "Mind's Eye", 'Fight for the Throne', 'Kimoyo Beads', 'Ingenious Smith', 'Dispatch', "King Solomon's Frogs", 'Everett K. Ross, Hapless Attaché'];
+const WK_UPGRADES = ['Swords to Plowshares', 'Path to Exile', 'Smothering Tithe', "Teferi's Protection", 'Heroic Intervention', 'Three Visits', 'Farseek', "Kodama's Reach", 'Cultivate', 'Skullclamp', 'Lightning Greaves', 'Swiftfoot Boots', 'Darksteel Plate', 'Sword of Feast and Famine', 'Sword of Fire and Ice', "Akroma's Will", 'Austere Command', 'Puresteel Paladin', 'Stoneforge Mystic', 'Mind Stone'];
+const upgraded = (precon, cut, ups) => [...precon.filter(([n]) => !cut.includes(n)), ...ones(ups)];
+
 const DECKS = {
   shay: { name: 'Shay Cormac (your deck)', commander: 'Shay Cormac', list: SHAY_LIST },
   elenda: {
@@ -61,17 +71,25 @@ const DECKS = {
     cut: ELENDA_CUT,
   },
   elendaBot: {
-    name: 'Dusk Rose aristocrats (Elenda)', botName: 'Bot', commander: 'Elenda, the Dusk Rose',
+    name: 'Dusk Rose aristocrats (Elenda)', short: 'Elenda', botName: 'Bot', commander: 'Elenda, the Dusk Rose',
     list: [...ones(ELENDA_BOT_BASE), ...ones(ELENDA_BOT_UPGRADES), ...ones(['Command Tower', 'Scoured Barrens', 'Orzhov Basilica']), ['Plains', 16], ['Swamp', 17]],
     upgrades: ELENDA_BOT_UPGRADES,
   },
+  revival: {
+    name: 'Revival Trance (FINAL FANTASY VI) + 20 upgrades', short: 'Terra', botName: 'Bot', commander: "Terra, Herald of Hope",
+    list: upgraded(RT_PRECON, RT_CUT, RT_UPGRADES), cut: RT_CUT, upgrades: RT_UPGRADES,
+  },
+  wakanda: {
+    name: 'Wakanda Forever + 20 upgrades', short: "T'Challa", botName: 'Bot', commander: "T'Challa, the Black Panther",
+    list: upgraded(WK_PRECON, WK_CUT, WK_UPGRADES), cut: WK_CUT, upgrades: WK_UPGRADES,
+  },
   cloud: {
-    name: 'Limit Break (Cloud)', botName: 'Bot', commander: 'Cloud, Ex-SOLDIER',
+    name: 'Limit Break (Cloud)', short: 'Cloud', botName: 'Bot', commander: 'Cloud, Ex-SOLDIER',
     list: [...ones(CLOUD_PRECON_CREATURES.filter(n => !CLOUD_CUT.includes(n))), ...ones(CLOUD_PRECON_OTHER), ...ones(CLOUD_UPGRADES), ['Mountain', 12], ['Forest', 12], ['Plains', 12]],
     cut: CLOUD_CUT,
   },
   sai: {
-    name: 'Keen Engineering (Sai)', botName: 'Bot', commander: 'Sai, Master Thopterist',
+    name: 'Keen Engineering (Sai)', short: 'Sai', botName: 'Bot', commander: 'Sai, Master Thopterist',
     list: [...ones(SAI_PRECON_CREATURES.filter(n => !SAI_CUT.includes(n))), ...ones(SAI_PRECON_OTHER), ...ones(SAI_UPGRADES), ['Island', 38]],
     cut: SAI_CUT,
   },

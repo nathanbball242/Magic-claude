@@ -4,7 +4,7 @@ const path = require('path');
 const vm = require('vm');
 
 const root = path.join(__dirname, '..', 'js');
-const files = ['engine.js', 'cards-shay.js', 'cards-cloud.js', 'cards-sai.js', 'cards-elenda.js', 'decks.js', 'ai.js'];
+const files = ['engine.js', 'cards-shay.js', 'cards-cloud.js', 'cards-sai.js', 'cards-elenda.js', 'cards-ff.js', 'cards-wakanda.js', 'decks.js', 'ai.js'];
 const ctx = vm.createContext({ console, setTimeout, Math, Date, Set, Map, JSON, Promise });
 vm.runInContext('var UI = { render(){}, onLog(){}, toast(){}, gameOver(){} };', ctx);
 for (const f of files) vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
@@ -14,7 +14,7 @@ const which = process.argv[3] || 'both';
 const verbose = process.argv.includes('-v');
 
 (async () => {
-  const keys = which === 'both' ? ['cloud', 'sai', 'elendaBot'] : [which];
+  const keys = which === 'both' ? ['cloud', 'sai', 'elendaBot'] : which.split(',').map(k => k.includes('+') ? k.split('+') : k);
   for (const key of keys) {
     const res = { win: 0, loss: 0, draw: 0, err: 0, turns: [] };
     for (let i = 0; i < N; i++) {
@@ -22,7 +22,7 @@ const verbose = process.argv.includes('-v');
         vm.runInContext(`SETTINGS.botDelay = 0; newGame(${JSON.stringify(key)}, { humanIsBot: true, humanDeck: ${JSON.stringify(process.argv.includes('--elenda') ? 'elenda' : 'shay')} });`, ctx);
         await vm.runInContext('gameLoop()', ctx);
         const G = vm.runInContext('G', ctx);
-        if (G.winner === 0) res.win++; else if (G.winner === 1) res.loss++; else res.draw++;
+        if (G.winner === 0) res.win++; else if (G.winner != null) res.loss++; else res.draw++;
         res.turns.push(G.turn);
         if (verbose) console.log(`game ${i}: winner ${G.winner} turn ${G.turn}`);
       } catch (e) {
@@ -33,6 +33,6 @@ const verbose = process.argv.includes('-v');
       }
     }
     const avg = res.turns.length ? (res.turns.reduce((a, b) => a + b, 0) / res.turns.length).toFixed(1) : '-';
-    console.log(`${key}: Shay wins ${res.win}, bot wins ${res.loss}, draws ${res.draw}, errors ${res.err}, avg turns ${avg}`);
+    console.log(`${[].concat(key).join('+')}: Shay wins ${res.win}, bot wins ${res.loss}, draws ${res.draw}, errors ${res.err}, avg turns ${avg}`);
   }
 })();

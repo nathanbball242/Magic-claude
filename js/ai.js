@@ -98,6 +98,7 @@ const AIH = {
   },
   bestLand(pi, lands) {
     if (!lands.length) return null;
+    if (!perms(pi).some(isLand)) { const safe = lands.filter(l => l.name !== 'Orzhov Basilica'); if (safe.length) lands = safe; }
     const need = AIH.colorNeed(pi);
     return lands.slice().sort((a, b) => AIH.landScore(pi, b, need) - AIH.landScore(pi, a, need))[0];
   },
@@ -164,7 +165,7 @@ const AIH = {
   hellkiteX(pi, max) {
     let best = 0, bestV = 0;
     for (let x = 0; x <= max; x++) {
-      const v = perms(opp(pi)).filter(c => !isLand(c) && mv(c) === x).reduce((a, c) => a + AIH.value(c), 0);
+      const v = opps(pi).flatMap(perms).filter(c => !isLand(c) && mv(c) === x).reduce((a, c) => a + AIH.value(c), 0);
       if (v > bestV) { bestV = v; best = x; }
     }
     return best;
@@ -185,6 +186,14 @@ const AIH = {
     const theirs = cs.filter(c => c.ctrl !== pi && (c.counters.m1m1 || 0) > 0);
     return theirs[0] || null;
   },
+  reanimateTarget(pi, cs) {
+    if (!cs || !cs.length) return null;
+    return cs.slice().sort((x, y) => (mv(y) + (x.d.pt ? 0 : 0)) - mv(x) || AIH.cardValue(y) - AIH.cardValue(x))[0];
+  },
+  martialX(pi, max) {
+    if (max >= 5 && (AI.wipeWanted(pi) || opps(pi).flatMap(creatures).reduce((a, c) => a + AIH.value(c), 0) > creatures(pi).reduce((a, c) => a + AIH.value(c), 0) * 1.5)) return max;
+    return Math.min(max, 4);
+  },
   productionTarget(cs) { return cs.slice().sort((a, b) => mv(b) - mv(a))[0]; },
 };
 
@@ -197,11 +206,11 @@ const AI = {
 
   /* ---------- helpers ---------- */
   threats(pi) {
-    return creatures(opp(pi)).filter(c => (c.isCmd || pow(c) >= 3));
+    return opps(pi).flatMap(creatures).filter(c => (c.isCmd || pow(c) >= 3));
   },
   boardPower(pi) { return creatures(pi).reduce((a, c) => a + Math.max(0, pow(c)), 0); },
   wipeWanted(pi) {
-    const mine = AI.boardPower(pi), theirs = AI.boardPower(opp(pi));
+    const mine = AI.boardPower(pi), theirs = Math.max(0, ...opps(pi).map(AI.boardPower));
     return theirs >= 2 * mine + 8 && theirs >= 10;
   },
   heldInstants(pi) {
@@ -289,7 +298,7 @@ const AI = {
     // 4b. artifact hate
     const vb = hand.find(c => c.name === 'Vandalblast');
     if (vb && !AI.tried(pi, 'vb')) {
-      const theirs = perms(opp(pi)).filter(isArtifact);
+      const theirs = opps(pi).flatMap(perms).filter(isArtifact);
       if (theirs.length >= 2 && canPay(pi, costOf(pi, vb, { p: pi, alt: vb.d.alts[0] }), {})) return { key: 'vb', run: () => castSpell(pi, vb, 'hand', { alt: vb.d.alts[0] }) };
       if (theirs.length && canPay(pi, costOf(pi, vb, { p: pi, from: 'hand' }), {})) return { key: 'vb', run: () => castSpell(pi, vb, 'hand') };
     }
@@ -312,6 +321,17 @@ const AI = {
       if (c.d.role === 'removal' && isAura(c) && !threats.length) continue;
       if (c.name === 'Mechanized Production' && !artifactsOf(pi).length) continue;
       return { key, run: async () => { if (c.zone === 'exile') c.playable = null; return await castSpell(pi, c, from === 'exile' && !c.foretold ? 'hand' : from, { free }); } };
+    }
+    // 5b. casting from the graveyard (flashback, blitz) and landcycling
+    for (const c of pl.gy) {
+      const key = 'g' + c.id;
+      if (AI.tried(pi, key)) continue;
+      const act = legalActionsFor(pi, c, 'gy').find(x => x.type === 'cast' && x.ok);
+      if (act && avail() - (+act.cost) >= (G.turn > 2 ? reserve : 0)) return { key, run: () => performAction(pi, act) };
+    }
+    if (!hand.some(isLand) && perms(pi).filter(isLand).length < 6) {
+      const cy = hand.find(c => c.d.cycling && c.d.cycling.search && canPay(pi, c.d.cycling.mc, {}));
+      if (cy && !AI.tried(pi, 'cy' + cy.id)) return { key: 'cy' + cy.id, run: () => performAction(pi, { type: 'cycle', card: cy }) };
     }
     // 6. equip
     const eqs = perms(pi).filter(e => isEquipment(e) && e.d.equip != null).sort((a, b) => (a.name === 'Lightning Greaves' ? 1 : 0) - (b.name === 'Lightning Greaves' ? 1 : 0));
@@ -341,7 +361,7 @@ const AI = {
     else if (c.name === 'Ultimate Magic: Meteor') f = x => isCreature(x) && tou(x) <= 7;
     else f = x => isCreature(x);
     const lose = (p) => perms(p).filter(x => f(x) && !has(x, 'indestructible')).reduce((a, x) => a + AIH.value(x), 0);
-    return lose(opp(pi)) > lose(pi) * 1.3;
+    return opps(pi).reduce((a, o) => a + lose(o), 0) > lose(pi) * 1.3;
   },
   pickAbility(pi, reserve, mainPhase) {
     const spare = () => manaAvail(pi) - reserve;
@@ -372,6 +392,14 @@ const AI = {
     if (n === 'Fighter Class') return mainPhase && myTurn;
     if (n === 'Whirler Virtuoso') return true;
     if (n === "Wayfarer's Bauble") return myTurn && mainPhase;
+    if (id === 'fetch' && isLand(c)) return true;
+    if (n === 'Phoenix Down') return P(pi).gy.some(x => isCreature(x) && mv(x) >= 3 && mv(x) <= 4);
+    if (n === 'Priest of Fell Rites' && id === 'rite') return P(pi).gy.some(x => isCreature(x) && mv(x) >= 5);
+    if (n === "Shuri's Fabricator") return P(pi).gy.some(x => isArtifact(x) && mv(x) >= 4);
+    if (n === 'Nakia, Wakandan Operative') return mainPhase && myTurn;
+    if (n === 'Fleecemane Lion') return true;
+    if (n === 'The Great Mound') return !myTurn || G.phase === 'end';
+    if (n === 'Throne of the High City') return G.monarch !== pi && perms(pi).filter(isLand).length >= 7;
     if (n === "Commander's Sphere") return P(pi).hand.length === 0 && perms(pi).filter(isLand).length >= 6;
     if (n === 'Steel Hellkite' && id === 'x') return AIH.hellkiteX(pi, spare) > 0;
     if (n === 'Urza, Lord High Artificer') return mainPhase && myTurn && G.phase === 'main2' && spare >= 5;
@@ -496,8 +524,23 @@ const AI = {
   },
 
   /* ---------- combat ---------- */
-  async declareAttackers(pi) {
-    const dp = opp(pi);
+  // "attack the player with the weakest defense"
+  pickDefender(pi) {
+    const os = opps(pi);
+    if (os.length === 1) return os[0];
+    const mine = creatures(pi).filter(c => canAttack(c) && pow(c) > 0);
+    const score = (o) => {
+      const blockers = creatures(o).filter(b => !b.tapped);
+      const through = mine.filter(a => !blockers.some(b => canBlock(b, a))).reduce((s, a) => s + pow(a), 0);
+      const dt = blockers.filter(b => has(b, 'deathtouch')).length;
+      return P(o).life - through * 2 + blockers.length * 3 + dt * 3 - (G.monarch === o ? 6 : 0) + attackTax(pi, o) * 2;
+    };
+    const best = os.slice().sort((a, b) => score(a) - score(b))[0];
+    G.focus[pi] = best;
+    return best;
+  },
+  async declareAttackers(pi, dp) {
+    if (dp == null) dp = AI.pickDefender(pi);
     // crew vehicles with creatures that won't attack well anyway
     for (const v of perms(pi).filter(c => c.d.crew != null && !c.tmp.crewed && !c.sick)) {
       const crewers = creatures(pi).filter(c => !c.tapped && c !== v && (c.sick || pow(c) <= 1 || c.name === 'Sai, Master Thopterist' || c.name === 'Urza, Lord High Artificer'));
@@ -540,7 +583,7 @@ const AI = {
     const nonEv = atk.filter(c => !evasive(c));
     if (dtBlockers > nonEv.length && nonEv.length) atk = atk.filter(evasive);
     // attack tax with spare mana only
-    const tax = attackTax(pi);
+    const tax = attackTax(pi, dp);
     if (tax && atk.length) {
       const spare = manaAvail(pi) - AI.reserve(pi);
       const n = Math.max(0, Math.floor(spare / tax));
@@ -625,7 +668,7 @@ const AI = {
     const unblocked = atk.filter(a => !a.blocked);
     if (aw && controlsCommander(pi) && unblocked.length >= 2 && AI.canCastNow(pi, aw, 'hand')) {
       const dmg = unblocked.reduce((s, a) => s + pow(a.c) * 2, 0);
-      if (dmg >= P(opp(pi)).life * 0.6) await cast(aw);
+      if (dmg >= P(G.combat.dp).life * 0.6) await cast(aw);
     }
   },
   async defenderTricks(pi) {

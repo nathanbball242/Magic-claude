@@ -43,7 +43,7 @@ C('Myr Battlesphere', {
       if (!picks.length) return;
       picks.forEach(m => m.tapped = true);
       tmpAdd(s, { p: picks.length });
-      dealDamage(s, PL(opp(s.ctrl)), picks.length);
+      dealDamage(s, PL(G.combat ? G.combat.dp : opp(s.ctrl)), picks.length);
       log(`Myr Battlesphere taps ${picks.length} Myr: +${picks.length}/+0 and ${picks.length} damage.`);
     },
   },
@@ -62,7 +62,7 @@ C('Steel Hellkite', {
         if (x == null) return false; ctx.x = x; return true;
       },
       costFn: (c, ctx) => (ctx ? ctx.x : 0),
-      resolve: async (ctx) => { const v = perms(opp(ctx.p)).filter(c => !isLand(c) && mv(c) === ctx.x); await destroyMany(v); },
+      resolve: async (ctx) => { const hit = G.tf.hitBy[ctx.card.id] || []; const v = (Array.isArray(hit) ? hit : opps(ctx.p)).flatMap(perms).filter(c => !isLand(c) && mv(c) === ctx.x); await destroyMany(v); },
     },
   ],
 });
@@ -174,12 +174,12 @@ C('Soul-Guide Lantern', {
   mc: '{1}', types: ['Artifact'], role: 'utility',
   text: "When Soul-Guide Lantern enters, exile target card from a graveyard.\n{T}, Sacrifice Soul-Guide Lantern: Exile each opponent's graveyard.\n{1}, {T}, Sacrifice Soul-Guide Lantern: Draw a card.",
   etb: async (c) => {
-    const cands = [...P(opp(c.ctrl)).gy, ...P(c.ctrl).gy];
+    const cands = [...opps(c.ctrl).flatMap(o => P(o).gy), ...P(c.ctrl).gy];
     if (!cands.length) return;
     await trigger(c, c.ctrl, 'exile target card from a graveyard', async (ctx) => { const k = await chooseCard(c.ctrl, { prompt: 'Exile target card from a graveyard', cands, ai: cs => AIH.bestCard(cs.filter(x => x.owner !== c.ctrl)) || null }); if (!k) return false; addTarget(ctx, k); return true; }, async (ctx) => { const t = ctx.targets[0]; if (tOK(ctx, t)) await exileC(t); });
   },
   abilities: [
-    { id: 'gy', label: "{T}, Sacrifice: Exile each opponent's graveyard", cost: 0, tap: true, sacSelf: true, speed: 'instant', resolve: async (ctx) => { for (const c of P(opp(ctx.p)).gy.slice()) moveTo(c, 'exile'); log('Graveyard exiled.'); } },
+    { id: 'gy', label: "{T}, Sacrifice: Exile each opponent's graveyard", cost: 0, tap: true, sacSelf: true, speed: 'instant', resolve: async (ctx) => { for (const o of opps(ctx.p)) for (const c of P(o).gy.slice()) moveTo(c, 'exile'); log('Opponents\' graveyards exiled.'); } },
     { id: 'draw', label: '{1}, {T}, Sacrifice: Draw a card', cost: 1, tap: true, sacSelf: true, speed: 'instant', hideFromAutoStop: true, resolve: async (ctx) => { await drawCards(ctx.p, 1); } },
   ],
 });
@@ -226,7 +226,7 @@ C('Fall from Favor', {
   mc: '{2}{U}', colors: 'U', types: ['Enchantment', 'Aura'], enchant: 'creature', role: 'removal', threat: 'aura',
   text: "Enchant creature\nWhen Fall from Favor enters, tap enchanted creature and you become the monarch.\nEnchanted creature doesn't untap during its controller's untap step unless that player is the monarch.",
   choose: (ctx) => pickTarget(ctx, 'Enchant creature', anyCreature()),
-  etb: async (c) => { const t = attachedTo(c); if (t) t.tapped = true; G.monarch = c.ctrl; log(`${P(c.ctrl).name} becomes the monarch.`); },
+  etb: async (c) => { const t = attachedTo(c); if (t) t.tapped = true; setMonarch(c.ctrl); },
 });
 C('Propaganda', { mc: '{2}{U}', colors: 'U', types: ['Enchantment'], role: 'tax', text: "Creatures can't attack you unless their controller pays {2} for each creature they control that's attacking you." });
 C('Thopter Spy Network', {
@@ -346,7 +346,7 @@ C('Mechanized Production', {
       log(`Mechanized Production copies ${t.name}.`);
       const counts = {};
       for (const a of artifactsOf(pi)) counts[a.name] = (counts[a.name] || 0) + 1;
-      if (Object.values(counts).some(v => v >= 8)) { P(opp(pi)).lost = true; log('Mechanized Production: eight identical artifacts. Game over.', 'big'); await sba(); }
+      if (Object.values(counts).some(v => v >= 8)) { for (const o of opps(pi)) P(o).lost = true; log('Mechanized Production: eight identical artifacts. Game over.', 'big'); await sba(); }
     },
   },
 });

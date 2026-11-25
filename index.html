@@ -14,20 +14,17 @@
 <div id="app">
   <div id="start">
     <div class="start-inner">
-      <div class="eyebrow">Commander 1v1 · 40 life · 21 commander damage</div>
-      <h1>Bounty hunt <span>vs the bot</span></h1>
+      <div class="eyebrow">Commander · 40 life · 21 commander damage · up to 4 bots</div>
+      <h1>Bounty hunt <span>vs the bots</span></h1>
       <p class="lede">Tag their creatures with bounty counters, then wipe. You pilot your Shay build, or the Elenda version with Shay in the 99. The bot plays an upgraded precon and follows the rules from your simulations.</p>
       <div class="eyebrow">Your commander</div>
       <div class="opp-pick" id="myPick">
         <button class="opp-card my-card" data-mine="shay" aria-pressed="true"><b>Shay Cormac</b><span class="pips">W B</span><small>Your purchased build. Tag with bounty counters, protect Shay, then wipe.</small></button>
         <button class="opp-card my-card" data-mine="elenda" aria-pressed="false"><b>Elenda, the Dusk Rose</b><span class="pips">W B</span><small>Same 99 with Shay moved in. Cuts Gideon's Lawkeeper, Goldmeadow Harrier, Blinding Mage, Sorceress Queen. Adds Shay Cormac, Viscera Seer, Zulaport Cutthroat, Cruel Celebrant.</small></button>
       </div>
-      <div class="eyebrow">Choose the opponent</div>
-      <div class="opp-pick">
-        <button class="opp-card" data-deck="cloud" aria-pressed="true"><b>Limit Break</b><span class="pips">R G W</span><small>Cloud, Ex-SOLDIER. Equipment voltron with 20 upgrades: Swords, Embercleave, Teferi's Protection, Heroic Intervention, Smothering Tithe.</small></button>
-        <button class="opp-card" data-deck="elendaBot" aria-pressed="false"><b>Dusk Rose</b><span class="pips">W B</span><small>Elenda, the Dusk Rose. Vampire aristocrats built precon style plus 20 upgrades: Teysa, Sanguine Bond, Bitterblossom, Toxic Deluge, Teferi's Protection, Demonic Tutor. Sacrifices creatures in response to your removal.</small></button>
-        <button class="opp-card" data-deck="sai" aria-pressed="false"><b>Keen Engineering</b><span class="pips">U</span><small>Sai, Master Thopterist. Artifact thopter swarm with 20 upgrades: Urza, Rhystic Study, Cyclonic Rift, Fierce Guardianship, counterspells.</small></button>
-      </div>
+      <div class="eyebrow">Opponents: 1 to 4 bots</div>
+      <div id="botList" class="bot-list"></div>
+      <button class="btn" id="addBot">Add another bot</button>
       <div class="settings">
         <label><input type="checkbox" id="setStop"> Let me respond to every bot spell (by default you get a window for removal, wipes, attacks and the bot's end step)</label>
         <label><input type="checkbox" id="setHouse"> House rule: Shay's {1} ability also puts a bounty counter on every bot creature (off = printed card: only targeting tags)</label>
@@ -39,6 +36,7 @@
     </div>
   </div>
   <div id="game" hidden>
+    <nav id="oppTabs" hidden></nav>
     <header class="pbar" id="oppBar"></header>
     <main id="board">
       <section class="bf opp">
@@ -66,6 +64,8 @@
 <script src="js/cards-cloud.js"></script>
 <script src="js/cards-sai.js"></script>
 <script src="js/cards-elenda.js"></script>
+<script src="js/cards-ff.js"></script>
+<script src="js/cards-wakanda.js"></script>
 <script src="js/decks.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/ui.js"></script>

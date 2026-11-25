@@ -41,7 +41,7 @@ C('Shay Cormac', {
   text: "{1}: Permanents your opponents control lose hexproof, indestructible, protection, shroud, and ward until end of turn.\nWhenever a creature an opponent controls becomes the target of a spell or ability you control, put a bounty counter on that creature.\nWhenever a creature with a bounty counter on it dies, put two +1/+1 counters on Shay Cormac.",
   abilities: [{
     id: 'strip', label: "{1}: Opponents' permanents lose hexproof, indestructible, protection, shroud, ward", labelFn: () => (SETTINGS.shayHouseRule ? "{1}: Strip opponents' protection and put a bounty counter on each of their creatures (house rule)" : null), cost: 1, speed: 'instant', hideFromAutoStop: true,
-    resolve: async (ctx) => { const o = opp(ctx.p); G.strip[o] = 'full'; const ps = perms(o); const tagged = SETTINGS.shayHouseRule ? ps.filter(isCreature) : []; for (const c of tagged) addCounters(c, 'bounty', 1); if (tagged.length) log(`Shay Cormac puts a bounty counter on every creature ${P(o).name} controls (${tagged.length}).`, 'bounty'); log(`Shay Cormac: all ${ps.length} permanents ${P(o).name} controls lose hexproof, indestructible, protection, shroud and ward until end of turn${ps.length ? ` (${ps.map(c => c.name.split(',')[0]).join(', ')})` : ''}. Permanents it plays later this turn are affected too.`, 'bounty'); },
+    resolve: async (ctx) => { const os = opps(ctx.p); for (const o of os) G.strip[o] = 'full'; const ps = os.flatMap(perms); const o = os.length === 1 ? os[0] : null; const tagged = SETTINGS.shayHouseRule ? ps.filter(isCreature) : []; for (const c of tagged) addCounters(c, 'bounty', 1); if (tagged.length) log(`Shay Cormac puts a bounty counter on every creature ${o != null ? P(o).name : 'your opponents'} control${o != null ? 's' : ''} (${tagged.length}).`, 'bounty'); log(`Shay Cormac: all ${ps.length} permanents ${o != null ? P(o).name + ' controls' : 'your opponents control'} lose hexproof, indestructible, protection, shroud and ward until end of turn${ps.length ? ` (${ps.map(c => c.name.split(',')[0]).join(', ')})` : ''}. Permanents it plays later this turn are affected too.`, 'bounty'); },
   }],
   on: {
     targeted: async (s, { byPi, target }) => {
@@ -133,7 +133,7 @@ C('Unstable Glyphbridge', {
   etb: async (c, opts) => {
     if (!opts.cast) return;
     const keep = [];
-    for (const pi of [c.ctrl, opp(c.ctrl)]) {
+    for (const pi of [c.ctrl, ...opps(c.ctrl)]) {
       const cands = creatures(pi).filter(x => pow(x) <= 2);
       if (!cands.length) continue;
       const k = await chooseCard(c.ctrl, { prompt: `Glyphbridge: choose a creature with power 2 or less ${pi === c.ctrl ? 'you control' : 'your opponent controls'} to keep`, cands, ai: cs => pi === c.ctrl ? AIH.ownBest(cs, { p: c.ctrl }) : AIH.weakest(cs) });
@@ -192,7 +192,7 @@ C("Cloud's Limit Break", {
     if (tier === 'cross') return await pickTarget(ctx, 'Destroy target tapped creature', c => isCreature(c) && c.tapped);
     if (tier === 'beam') {
       ctx.noFizzle = false;
-      for (const pi of [opp(ctx.p), ctx.p]) {
+      for (const pi of [...opps(ctx.p), ctx.p]) {
         await pickTarget(ctx, `Blade Beam: tapped creature ${pi === ctx.p ? 'you control' : 'opponent controls'} (optional)`, c => isCreature(c) && c.tapped && c.ctrl === pi, cs => (pi === ctx.p ? null : AIH.oppThreat(cs, ctx)), true);
       }
       return ctx.targets.length > 0;
@@ -509,7 +509,7 @@ C('Skullclamp', {
 C('Blood Artist', {
   mc: '{1}{B}', colors: 'B', types: ['Creature'], sub: 'Vampire', pt: [0, 1], role: 'creature',
   text: 'Whenever Blood Artist or another creature dies, target player loses 1 life and you gain 1 life.',
-  on: { dies: async (s, { mult }) => { const o = opp(s.ctrl); for (let i = 0; i < mult; i++) { loseLife(o, 1); gainLife(s.ctrl, 1); } log(`Blood Artist drains ${mult}.`); } },
+  on: { dies: async (s, { mult }) => { const o = pickOpp(s.ctrl); for (let i = 0; i < mult; i++) { loseLife(o, 1); gainLife(s.ctrl, 1); } log(`Blood Artist: ${P(o).name} loses ${mult}.`); } },
 });
 C('Swiftfoot Boots', { mc: '{2}', types: ['Artifact', 'Equipment'], equip: 1, role: 'equipment', text: 'Equipped creature has hexproof and haste.\nEquip {1}', attachBuff: () => ({ kw: ['hexproof', 'haste'] }) });
 C('Darksteel Plate', { mc: '{3}', types: ['Artifact', 'Equipment'], equip: 2, kw: ['indestructible'], role: 'equipment', text: 'Indestructible\nEquipped creature has indestructible.\nEquip {2}', attachBuff: () => ({ kw: ['indestructible'] }) });
@@ -524,7 +524,7 @@ C('Orzhov Basilica', {
   types: ['Land'], mana: 2, prod: ['W', 'B'], entersTapped: true, text: "Orzhov Basilica enters tapped.\nWhen Orzhov Basilica enters, return a land you control to its owner's hand.\n{T}: Add {W}{B}.",
   etb: async (c) => {
     const lands = perms(c.ctrl).filter(isLand);
-    const k = await chooseCard(c.ctrl, { prompt: 'Orzhov Basilica: return a land you control to hand', cands: lands, ai: cs => cs.find(l => l !== c && l.tapped && isBasic(l)) || cs.find(l => l !== c && isBasic(l)) || cs[0] });
+    const k = await chooseCard(c.ctrl, { prompt: 'Orzhov Basilica: return a land you control to hand', cands: lands, ai: cs => cs.find(l => l !== c && l.tapped && isBasic(l)) || cs.find(l => l !== c && isBasic(l)) || cs.find(l => l !== c) || cs[0] });
     if (k) { moveTo(k, 'hand'); log(`${k.name} returns to hand.`); }
   },
 });
@@ -558,9 +558,9 @@ C('Viscera Seer', {
 });
 const drainOnOwnDeath = (name) => async (s, { lki, mult }) => {
   if (lki.ctrl !== s.ctrl) return;
-  const o = opp(s.ctrl);
-  for (let i = 0; i < mult; i++) { loseLife(o, 1); gainLife(s.ctrl, 1); }
-  log(`${name}: ${P(o).name} loses ${mult}, ${P(s.ctrl).name} gains ${mult}.`);
+  const os = opps(s.ctrl);
+  for (let i = 0; i < mult; i++) { for (const o of os) loseLife(o, 1); gainLife(s.ctrl, 1); }
+  log(`${name}: each opponent loses ${mult}, ${P(s.ctrl).name} gains ${mult}.`);
 };
 C('Zulaport Cutthroat', { mc: '{1}{B}', colors: 'B', types: ['Creature'], sub: 'Human Rogue Ally', pt: [1, 1], role: 'creature', text: 'Whenever Zulaport Cutthroat or another creature you control dies, each opponent loses 1 life and you gain 1 life.', on: { dies: drainOnOwnDeath('Zulaport Cutthroat') } });
 C('Cruel Celebrant', { mc: '{W}{B}', colors: 'WB', types: ['Creature'], sub: 'Vampire', pt: [1, 2], role: 'creature', text: 'Whenever Cruel Celebrant or another creature or planeswalker you control dies, each opponent loses 1 life and you gain 1 life.', on: { dies: drainOnOwnDeath('Cruel Celebrant') } });

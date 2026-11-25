@@ -152,13 +152,16 @@ const UI = {
   /* ---------------- full draw ---------------- */
   draw() {
     if (!G) return;
-    const me = P(HUMAN), bot = P(BOT);
+    const me = P(HUMAN);
+    const V = UI.viewBot();
+    const bot = P(V);
     UI.playableIds = UI.mode === 'action' ? new Set(allLegalActions(HUMAN, UI.data.mode === 'instant').filter(a => a.ok !== false).map(a => a.card.id)) : null;
     const others = (pi) => perms(pi).filter(c => !isCreature(c) && !isLand(c));
     const crs = (pi) => perms(pi).filter(isCreature);
-    UI.fill('oppCreatures', crs(BOT));
-    UI.fill('oppOthers', others(BOT));
-    UI.landChips('oppLands', BOT);
+    UI.fill('oppCreatures', crs(V));
+    UI.fill('oppOthers', others(V));
+    UI.landChips('oppLands', V);
+    UI.drawTabs();
     UI.fill('myCreatures', crs(HUMAN));
     UI.fill('myOthers', others(HUMAN));
     UI.landChips('myLands', HUMAN);
@@ -172,18 +175,19 @@ const UI = {
       const play = pi === HUMAN && UI.playableIds && UI.playableIds.has(c.id);
       return `<button class="chip cz ${play ? 'playable' : ''}" data-id="${c.id}">${esc(c.name.split(',')[0])}${tax ? ` +${tax}` : ''}</button>`;
     };
-    const dmgFrom = (pi) => Object.values(P(pi).cmdDmg)[0] || 0;
+    const dmgFrom = (pi) => (pi === HUMAN ? Math.max(0, ...Object.values(P(pi).cmdDmg)) : P(pi).cmdDmg[HUMAN] || 0);
     UI.el('oppBar').innerHTML = `
       <span class="pname">${esc(bot.name)}</span><span class="life ${bot.life <= 10 ? 'low' : ''}">${bot.life}</span>
-      <span class="chip ${dmgFrom(BOT) >= 14 ? 'gold' : ''}" title="Commander damage from your commander">${esc(UI.cmdName(HUMAN))} ${dmgFrom(BOT)}/21</span>
+      ${bot.lost ? '<span class="chip warn">Out of the game</span>' : ''}
+      <span class="chip ${dmgFrom(V) >= 14 ? 'gold' : ''}" title="Commander damage from your commander">${esc(UI.cmdName(HUMAN))} ${dmgFrom(V)}/21</span>
       <span class="chip">Hand ${bot.hand.length}</span><span class="chip">Lib ${bot.library.length}</span>
-      <button class="chip" data-zone="gy" data-pi="1">GY ${bot.gy.length}</button><button class="chip" data-zone="exile" data-pi="1">Exile ${bot.exile.length}</button>
-      ${czChip(BOT)}${G.strip[BOT] ? `<span class="chip gold">Shields down: all ${perms(BOT).length}</span>` : ''}${G.monarch === BOT ? '<span class="chip gold">Monarch</span>' : ''}${bot.energy ? `<span class="chip">E ${bot.energy}</span>` : ''}
-      <span class="chip">Mana ${manaAvail(BOT)}${UI.colorSummary(BOT)}</span>`;
+      <button class="chip" data-zone="gy" data-pi="${V}">GY ${bot.gy.length}</button><button class="chip" data-zone="exile" data-pi="${V}">Exile ${bot.exile.length}</button>
+      ${czChip(V)}${G.strip[V] ? `<span class="chip gold">Shields down: all ${perms(V).length}</span>` : ''}${G.monarch === V ? '<span class="chip gold">Monarch</span>' : ''}${bot.energy ? `<span class="chip">E ${bot.energy}</span>` : ''}
+      <span class="chip">Mana ${manaAvail(V)}${UI.colorSummary(V)}</span>`;
     const mana = manaAvail(HUMAN);
     UI.el('myBar').innerHTML = `
       <span class="life ${me.life <= 10 ? 'low' : ''}">${me.life}</span>
-      <span class="chip ${dmgFrom(HUMAN) >= 14 ? 'warn' : ''}" title="Commander damage taken">Cmd ${dmgFrom(HUMAN)}/21</span>
+      <span class="chip ${dmgFrom(HUMAN) >= 14 ? 'warn' : ''}" title="Most commander damage taken from one commander">Cmd ${dmgFrom(HUMAN)}/21</span>
       <span class="chip gold" title="Untapped mana by color">Mana ${mana}${UI.colorSummary(HUMAN)}</span>
       ${czChip(HUMAN)}
       <button class="chip" data-zone="gy" data-pi="0">GY ${me.gy.length}</button><button class="chip" data-zone="exile" data-pi="0">Exile ${me.exile.length}</button>
@@ -192,8 +196,8 @@ const UI = {
     // strip
     const PH = [['upkeep', 'Upkeep'], ['draw', 'Draw'], ['main1', 'Main 1'], ['combat', 'Combat'], ['main2', 'Main 2'], ['end', 'End']];
     const curPh = ['attackers', 'blockers', 'damage'].includes(G.phase) ? 'combat' : G.phase === 'cleanup' ? 'end' : G.phase;
-    UI.el('phases').innerHTML = `<span class="turnlbl">T${G.turn} · ${G.active === HUMAN ? 'Your turn' : esc(bot.name)}</span>` + PH.map(([k, l]) => `<span class="ph ${k === curPh ? 'on' : ''}">${l}</span>`).join('');
-    UI.el('stack').innerHTML = G.stack.slice().reverse().map((it, i) => { const src = it.kind === 'spell' ? it.card : it.src; return `<button class="stk ${it.p === BOT ? 'bot' : ''} ${i === 0 ? 'top' : ''}" data-id="${src.id}">${esc(P(it.p).name)}: ${esc(stackLabel(it))}<span class="stk-view">View card</span></button>`; }).join('');
+    UI.el('phases').innerHTML = `<span class="turnlbl">T${G.turn} · ${G.active === HUMAN ? 'Your turn' : esc(P(G.active).name)}</span>` + PH.map(([k, l]) => `<span class="ph ${k === curPh ? 'on' : ''}">${l}</span>`).join('');
+    UI.el('stack').innerHTML = G.stack.slice().reverse().map((it, i) => { const src = it.kind === 'spell' ? it.card : it.src; return `<button class="stk ${it.p !== HUMAN ? 'bot' : ''} ${i === 0 ? 'top' : ''}" data-id="${src.id}">${esc(P(it.p).name)}: ${esc(stackLabel(it))}<span class="stk-view">View card</span></button>`; }).join('');
     const recent = (G.botRecent || []).map(findAny).filter(Boolean);
     UI.el('botRecent').innerHTML = recent.length ? `<span class="rc-lbl">Bot cast:</span>${recent.map(c => `<button class="chip rc" data-id="${c.id}">${esc(c.name.split(',')[0])}</button>`).join('')}` : '';
     UI.el('ticker').innerHTML = G.log.slice(-4).map(l => `<div class="${esc(l.cls)}">${esc(l.msg)}</div>`).join('');
@@ -205,15 +209,19 @@ const UI = {
     const m = UI.mode, d = UI.data;
     if (m === 'action') {
       const top = G.stack[G.stack.length - 1];
-      if (d.mode === 'instant' && top && top.p === BOT) { const src = top.kind === 'spell' ? top.card : top.src; btns.push({ label: `View ${src.name.split(',')[0]}`, fn: () => UI.showCard(src) }); }
+      if (d.mode === 'instant' && top && top.p !== HUMAN) { const src = top.kind === 'spell' ? top.card : top.src; btns.push({ label: `View ${src.name.split(',')[0]}`, fn: () => UI.showCard(src) }); }
       text = `<b>${esc(d.reason)}</b><br>${d.mode === 'main' ? 'Tap a card in your hand or on the battlefield to play it.' : 'Tap a highlighted card to respond, or continue.'}`;
       btns.push({ label: d.passLabel, cls: 'primary', fn: () => UI.resolve({ type: 'pass' }) });
     } else if (m === 'pick') {
       text = `<b>${esc(d.prompt)}</b><br>Tap a glowing card.`;
       btns.push({ label: 'Cancel', fn: () => UI.resolve(null) });
     } else if (m === 'attack') {
-      const tax = attackTax(HUMAN);
-      text = `<b>Declare attackers.</b> Tap creatures to toggle.${tax ? ` Tax ${tax} each (${d.sel.size * tax} of ${manaAvail(HUMAN)} mana).` : ''}`;
+      const os = opps(HUMAN);
+      if (G.attackTarget == null || !os.includes(G.attackTarget)) G.attackTarget = os.includes(UI.view) ? UI.view : os[0];
+      const tgt = G.attackTarget;
+      const tax = attackTax(HUMAN, tgt);
+      text = `<b>Declare attackers${os.length > 1 ? ` at ${esc(P(tgt).name)}` : ''}.</b> Tap creatures to toggle.${tax ? ` Tax ${tax} each (${d.sel.size * tax} of ${manaAvail(HUMAN)} mana).` : ''}${os.length > 1 ? ' Pick who to attack:' : ''}`;
+      if (os.length > 1) for (const o of os) btns.push({ label: `${o === tgt ? '● ' : ''}${P(o).name.replace(/^Bot (\d+).*/, 'Bot $1')} (${P(o).life})`, cls: o === tgt ? 'tgt on' : 'tgt', fn: () => { G.attackTarget = o; UI.view = o; const t2 = attackTax(HUMAN, o); if (t2) { const max = Math.floor(manaAvail(HUMAN) / t2); while (d.sel.size > max) d.sel.delete([...d.sel].pop()); } UI.render(); } });
       btns.push({ label: 'No attack', fn: () => UI.resolve([]) });
       btns.push({ label: `Attack with ${d.sel.size}`, cls: 'primary', disabled: !d.sel.size, fn: () => UI.resolve([...d.sel].map(findAny)) });
     } else if (m === 'block') {
@@ -249,7 +257,7 @@ const UI = {
     return new Promise((res) => {
       const sel = new Set();
       const render = () => {
-        const zl = (c) => (c.zone && c.zone !== 'hand' ? `<span class="zl">${c.zone === 'bf' ? (c.ctrl === HUMAN ? 'yours' : 'bot') : c.zone}</span>` : '');
+        const zl = (c) => (c.zone && c.zone !== 'hand' ? `<span class="zl">${c.zone === 'bf' ? (c.ctrl === HUMAN ? 'yours' : P(c.ctrl).name.replace(/ \(.*/, '')) : c.zone}</span>` : '');
         UI.openSheet(`<h3>${esc(prompt)}</h3><p class="sub">${max === 1 ? 'Tap a card.' : `Choose ${min === max ? max : `${min} to ${max}`}. Selected ${sel.size}.`} Long names are shown on the cards.</p>
           <div class="grid">${cands.map(c => gcardHTML(c, zl(c)).replace('class="gcard"', `class="gcard ${sel.has(c.id) ? 'on' : ''}"`)).join('')}</div>
           <div class="row-btns">${cancellable || min === 0 ? '<button class="btn" id="mpCancel">Cancel</button>' : ''}${max > 1 || min !== max ? `<button class="btn primary" id="mpOk" ${sel.size < min || sel.size > max ? 'disabled' : ''}>Confirm</button>` : ''}</div>`, false);
@@ -317,6 +325,27 @@ const UI = {
 
   /* ---------------- taps ---------------- */
   cmdName(pi) { const p = P(pi); const c = [...p.cz, ...p.bf, ...p.gy, ...p.exile, ...p.hand].find(x => x.isCmd && x.owner === pi); return c ? c.name.split(',')[0] : 'Commander'; },
+  viewBot() {
+    const bots = G.players.filter(p => p.idx !== HUMAN).map(p => p.idx);
+    // follow the action: the active bot, or the bot attacking you
+    const follow = G.combat && G.combat.dp === HUMAN ? G.combat.ap : (G.active !== HUMAN ? G.active : null);
+    if (follow != null && UI.lastFollow !== follow + ':' + G.turn + ':' + !!G.combat) { UI.lastFollow = follow + ':' + G.turn + ':' + !!G.combat; UI.view = follow; }
+    if (UI.view == null || !bots.includes(UI.view)) UI.view = bots.find(b => !P(b).lost) ?? bots[0];
+    return UI.view;
+  },
+  drawTabs() {
+    const box = UI.el('oppTabs');
+    const bots = G.players.filter(p => p.idx !== HUMAN);
+    if (bots.length < 2) { box.innerHTML = ''; box.hidden = true; return; }
+    box.hidden = false;
+    const cand = (pi) => (UI.mode === 'pick' ? perms(pi).filter(c => UI.data.ids.has(c.id)).length : 0);
+    box.innerHTML = bots.map(p => {
+      const n = cand(p.idx);
+      const flags = [G.active === p.idx ? 'turn' : '', G.combat && G.combat.ap === p.idx && G.combat.dp === HUMAN ? 'atk' : '', p.lost ? 'out' : '', UI.view === p.idx ? 'on' : ''].filter(Boolean).join(' ');
+      return `<button class="otab ${flags}" data-tab="${p.idx}"><b>${esc(p.name.replace(/ \(.*/, ''))}</b> <small>${esc((DECKS[p.deckKey] || {}).short || '')}</small><span class="ol">${p.lost ? 'out' : p.life}</span>${n ? `<span class="ocand">${n}</span>` : ''}</button>`;
+    }).join('');
+    box.querySelectorAll('[data-tab]').forEach(e => e.onclick = () => { UI.view = +e.dataset.tab; UI.render(); });
+  },
   colorSummary(pi) {
     const m = manaColors(pi);
     const parts = [...'WUBRGC'].filter(k => m[k]).map(k => `${pipHTML(k)}${m[k]}`);
@@ -332,7 +361,7 @@ const UI = {
       if (d.elig.has(c.id)) {
         if (d.sel.has(c.id)) d.sel.delete(c.id);
         else {
-          const tax = attackTax(HUMAN);
+          const tax = attackTax(HUMAN, G.attackTarget);
           if (tax && (d.sel.size + 1) * tax > manaAvail(HUMAN)) { UI.toast(`Not enough mana for the attack tax (${tax} each).`); return; }
           d.sel.add(c.id);
         }
@@ -396,11 +425,11 @@ const UI = {
     return `<div class="detail">${big}<div class="oracle"><div>${manaHTML(c.d.mc || '')} ${esc(typeLine(c))}${c.d.pt ? ` · ${c.d.pt[0]}/${c.d.pt[1]}` : ''}</div><div style="margin-top:6px">${esc(c.d.text || '')}</div>${lines.length ? `<div class="meta">${lines.map(esc).map(x => `<span>${x}</span>`).join('')}</div>` : ''}</div></div>`;
   },
   openZone(zone, pi) {
-    const cards = P(pi)[zone].slice().reverse().map(c => (pi === BOT && c.faceDown ? Object.assign(Object.create(c), { faceHidden: true, name: 'Foretold card', d: { ...c.d, text: 'A face-down foretold card.', mc: '', img: null } }) : c));
+    const cards = P(pi)[zone].slice().reverse().map(c => (pi !== HUMAN && c.faceDown ? Object.assign(Object.create(c), { faceHidden: true, name: 'Foretold card', d: { ...c.d, text: 'A face-down foretold card.', mc: '', img: null } }) : c));
     const title = `${pi === HUMAN ? 'Your' : P(pi).name + "'s"} ${zone === 'gy' ? 'graveyard' : 'exile'} (${cards.length})`;
     UI.openSheet(`<div class="row-btns" style="justify-content:space-between"><h3>${esc(title)}</h3><button class="btn" id="zClose">Close</button></div>${cards.length ? `<div class="grid">${cards.map(c => gcardHTML(c, c.foretold != null && pi === HUMAN ? '<span class="zl">foretold</span>' : '')).join('')}</div>` : '<p class="sub">Empty.</p>'}`, true);
     UI.el('zClose').onclick = () => UI.closeSheet();
-    UI.el('sheet').querySelectorAll('[data-gid]').forEach(e => e.onclick = () => { const c = findAny(+e.dataset.gid); if (c && !(pi === BOT && c.faceDown)) UI.showCard(c); });
+    UI.el('sheet').querySelectorAll('[data-gid]').forEach(e => e.onclick = () => { const c = findAny(+e.dataset.gid); if (c && !(pi !== HUMAN && c.faceDown)) UI.showCard(c); });
   },
   onAct(a) {
     if (a === 'log') {
@@ -447,9 +476,10 @@ const UI = {
   gameOver() {
     UI.render();
     const win = G.winner === HUMAN;
-    const title = G.winner == null ? 'Draw' : win ? 'You win' : `${P(BOT).name} wins`;
-    const me = P(HUMAN), bot = P(BOT);
-    UI.openSheet(`<h3>${title}</h3><p class="sub">Turn ${G.turn}. You ${me.life} life, bot ${bot.life} life. Shay dealt ${Object.values(bot.cmdDmg)[0] || 0} commander damage.</p>
+    const title = win ? 'You win' : P(HUMAN).lost ? 'You lose' + (G.winner != null ? ` · ${P(G.winner).name} is ${living().length > 1 ? 'still standing' : 'the winner'}` : '') : 'Draw';
+    const me = P(HUMAN);
+    const bots = G.players.filter(p => p.idx !== HUMAN).map(p => `${p.name}: ${p.lost ? 'out' : p.life + ' life'}`).join(' · ');
+    UI.openSheet(`<h3>${title}</h3><p class="sub">Turn ${G.turn}. You ${me.life} life. ${esc(bots)}.</p>
       <div class="logbox">${G.log.slice(-8).map(l => `<div class="logline ${esc(l.cls)}">${esc(l.msg)}</div>`).join('')}</div>
       <div class="row-btns"><button class="btn" id="goLog">Full log</button><button class="btn primary" id="goAgain">New game</button></div>`, false);
     UI.el('goAgain').onclick = () => location.reload();

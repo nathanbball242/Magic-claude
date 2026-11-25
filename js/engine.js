@@ -44,9 +44,23 @@ function C(name, d) {
 
 /* ---------------- basic accessors ---------------- */
 function P(pi) { return G.players[pi]; }
-function opp(pi) { return 1 - pi; }
+function living() { return G.players.filter(p => !p.lost).map(p => p.idx); }
+function opps(pi) { return living().filter(x => x !== pi); }
+/* the single opponent an effect defaults to: the player's current focus, else the lowest-life opponent */
+function opp(pi) {
+  const os = opps(pi);
+  if (!os.length) return G.players.find(p => p.idx !== pi).idx;
+  const f = G.focus && G.focus[pi];
+  if (f != null && os.includes(f)) return f;
+  return os.slice().sort((a, b) => P(a).life - P(b).life)[0];
+}
+function pickOpp(pi) { return opp(pi); }
+function apnap() { const n = G.players.length, out = []; for (let i = 0; i < n; i++) { const q = (G.active + i) % n; if (!P(q).lost) out.push(q); } return out; }
+function nextPlayer(pi) { const n = G.players.length; for (let i = 1; i <= n; i++) { const q = (pi + i) % n; if (!P(q).lost) return q; } return pi; }
+function isBotPi(pi) { return pi !== HUMAN; }
 function PL(pi) { return { isPlayer: true, pi, name: P(pi).name }; }
 function nm(c) { return c.isPlayer ? c.name : c.name; }
+const YOU_FIX = [[/\bYou is\b/g, 'You are'], [/\bYou has\b/g, 'You have']];
 const YOU_VERBS = ['casts', 'draws', 'attacks', 'discards', 'mulligans', 'keeps', 'pays', 'takes', 'gains', 'loses', 'creates', 'tutors', 'reveals', 'foretells', 'scries', 'ventures', 'becomes', 'goes', 'tries', 'searches', 'sacrifices', 'chooses'];
 function fixYou(msg) {
   return msg.replace(/\bYou (\w+)\b/g, (m, v) => (YOU_VERBS.includes(v) ? 'You ' + (v === 'goes' ? 'go' : v === 'tries' ? 'try' : v === 'searches' ? 'search' : v === 'scries' ? 'scry' : v.replace(/s$/, '')) : m))
@@ -55,6 +69,7 @@ function fixYou(msg) {
 function log(msg, cls = '') {
   if (!G) return;
   msg = fixYou(msg);
+  for (const [re, to] of YOU_FIX) msg = msg.replace(re, to);
   G.log.push({ t: G.turn, msg, cls });
   if (G.log.length > 1500) G.log.shift();
   if (typeof UI !== 'undefined' && UI.onLog) UI.onLog(msg, cls);
@@ -94,7 +109,7 @@ function isBasic(c) { return c.d.types.includes('Basic'); }
 
 /* ---------------- battlefield queries ---------------- */
 function perms(pi) { return P(pi).bf.filter(c => !c.phased); }
-function allPerms() { return [...perms(G.active), ...perms(opp(G.active))]; }
+function allPerms() { return apnap().flatMap(perms); }
 function creatures(pi) { return perms(pi).filter(isCreature); }
 function allCreatures() { return allPerms().filter(isCreature); }
 function artifactsOf(pi) { return perms(pi).filter(isArtifact); }
@@ -128,6 +143,9 @@ function st(c) {
   let ward = d.ward || 0;
   const lose = new Set();
   if (c.animated) kw.add('haste');
+  if (c.counters && c.counters.indestructible) kw.add('indestructible');
+  if (c.perm && (c.perm.blitz || c.perm.unearth)) kw.add('haste');
+  if (G && c.zone === 'bf' && isCreature(c) && P(c.ctrl).gy.some(x => x.name === 'Anger') && hasLandType(c.ctrl, 'Mountain')) kw.add('haste');
   p += (c.counters.p1p1 || 0) - (c.counters.m1m1 || 0);
   t += (c.counters.p1p1 || 0) - (c.counters.m1m1 || 0);
   const apply = (r) => {
@@ -241,10 +259,10 @@ async function pickTarget(ctx, prompt, filter, ai, optional = false) {
   return true;
 }
 async function pickPlayerTarget(ctx, prompt, ai) {
-  const cands = [PL(HUMAN), PL(BOT)].filter(p => canTarget(p, ctx.p));
+  const cands = living().map(PL).filter(p => canTarget(p, ctx.p));
   if (!cands.length) return false;
   if (P(ctx.p).isBot) { addTarget(ctx, ai ? ai(cands) : cands.find(x => x.pi !== ctx.p) || cands[0]); return true; }
-  const v = await UI.pickOpt(prompt, cands.map(c => ({ label: c.pi === ctx.p ? 'Yourself' : 'Opponent (' + c.name + ')', value: c.pi })));
+  const v = await UI.pickOpt(prompt, cands.map(c => ({ label: c.pi === ctx.p ? 'Yourself' : c.name + ` (${P(c.pi).life} life)`, value: c.pi })));
   if (v == null) return false;
   addTarget(ctx, PL(v));
   return true;
@@ -256,7 +274,7 @@ function gainLife(pi, n) {
   P(pi).life += n;
   G.tf.lifeGained[pi] += n;
   const bonds = perms(pi).filter(c => c.name === 'Sanguine Bond').length;
-  if (bonds) { loseLife(opp(pi), n * bonds); log(`Sanguine Bond: ${P(opp(pi)).name} loses ${n * bonds}.`); }
+  if (bonds) { const o = pickOpp(pi); loseLife(o, n * bonds); log(`Sanguine Bond: ${P(o).name} loses ${n * bonds}.`); }
 }
 function loseLife(pi, n) {
   if (n <= 0 || P(pi).lifeLocked) return;
@@ -270,7 +288,7 @@ function dealDamage(src, tgt, n, { combat = false } = {}) {
     if (pl.protAll || pl.preventDmg) return 0;
     if (!pl.lifeLocked) pl.life -= n;
     if (combat && src.isCmd) pl.cmdDmg[src.owner] = (pl.cmdDmg[src.owner] || 0) + n;
-    if (combat && G.monarch === tgt.pi && src.ctrl !== tgt.pi) { G.monarch = src.ctrl; log(`${P(src.ctrl).name} becomes the monarch.`); }
+    if (combat && G.monarch === tgt.pi && src.ctrl !== tgt.pi) setMonarch(src.ctrl);
   } else {
     if (tgt.zone !== 'bf') return 0;
     const s = st(tgt);
@@ -297,13 +315,15 @@ function snap(c) {
     id: c.id, name: c.name, ctrl: c.ctrl, owner: c.owner, counters: { ...c.counters },
     p: isCreature(c) ? pow(c) : 0, t: isCreature(c) ? tou(c) : 0,
     attached: attachments(c).map(a => a.id), damagedBy: c.damagedBy.slice(),
-    isCmd: c.isCmd, token: c.token, d: c.d, mv: mv(c),
+    isCmd: c.isCmd, token: c.token, d: c.d, mv: mv(c), perm: { ...c.perm },
   };
 }
 
 /* ---------------- zones ---------------- */
 function removeFromZone(c) {
   if (!c.zone || c.zone === 'stack') return;
+  if (c.zone === 'gy' && G && c.d.types.includes('Creature')) { G.tf.gyLeft = G.tf.gyLeft || {}; G.tf.gyLeft[c.owner] = true; for (const s of perms(c.owner)) if (s.d.onGyCreatureLeave) s.d.onGyCreatureLeave(s, c); }
+  else if (c.zone === 'gy' && G) { G.tf.gyLeft = G.tf.gyLeft || {}; G.tf.gyLeft[c.owner] = true; }
   const arr = c.zone === 'bf' ? P(c.ctrl).bf : P(c.owner)[c.zone];
   const i = arr.indexOf(c);
   if (i >= 0) arr.splice(i, 1);
@@ -336,14 +356,16 @@ function shuffle(arr) {
   return arr;
 }
 async function enterBF(c, pi, opts = {}) {
+  if (opts.fromZone == null) opts.fromZone = (opts.ctx && opts.ctx.from === 'gy') ? 'gy' : c.zone;
   removeFromZone(c);
   c.zone = 'bf'; c.zcc++; c.ctrl = pi;
   P(pi).bf.push(c);
-  c.tapped = !!(opts.tapped || c.d.entersTapped);
+  c.tapped = !!(opts.tapped || c.d.entersTapped || (c.d.entersTappedFn && c.d.entersTappedFn(c)));
   c.sick = true; c.tmp = {}; c.perm = {}; c.counters = c.counters || {};
   c.dmg = 0; c.dt = false; c.damagedBy = [];
   if (opts.attachTo) c.attachedTo = opts.attachTo.id;
   if (c.d.entersCounters) for (const k in c.d.entersCounters) addCounters(c, k, c.d.entersCounters[k]);
+  if (opts.blitz) { c.perm.blitz = true; G.delayed.push({ at: 'endStep', fn: async () => { if (c.zone === 'bf' && c.perm.blitz) { log(`Blitz: ${c.name} is sacrificed.`); await sacrifice(c); } } }); }
   if (!c.token && !opts.quiet) log(`${P(pi).name}: ${c.name} enters the battlefield${c.tapped ? ' tapped' : ''}.`);
   if (c.d.etb) await c.d.etb(c, opts);
   await emit('etb', { card: c, opts });
@@ -382,7 +404,7 @@ async function killBatch(victims, how = 'destroy') {
     if (c.zone !== 'bf') continue;
     const lki = snap(c);
     const wasCreature = isCreature(c);
-    const toExile = !!c.tmp.exileIfDies && wasCreature;
+    const toExile = (!!c.tmp.exileIfDies && wasCreature) || !!c.perm.unearth || !!c.perm.finality;
     if (toExile) log(`${lki.name} is exiled instead of dying.`);
     else log(`${lki.name} ${how === 'sac' ? 'is sacrificed' : wasCreature ? 'dies' : 'is put into the graveyard'}.`, wasCreature ? 'death' : '');
     moveTo(c, toExile ? 'exile' : 'gy');
@@ -395,6 +417,7 @@ async function killBatch(victims, how = 'destroy') {
       await fireDies(r, snapshot);
     }
     if (r.died && r.lki.d.ltbToGY) await r.lki.d.ltbToGY(r.c, r.lki);
+    if (r.lki.perm && r.lki.perm.blitz && r.wasCreature) { log(`Blitz: ${P(r.lki.ctrl).name} draws a card.`); await drawCards(r.lki.ctrl, 1); }
   }
   return recs.map(r => r.c);
 }
@@ -550,6 +573,7 @@ function manaSources(pi, opts = {}) {
   const used = new Set();
   for (const c of perms(pi)) {
     if (c.tapped || c === opts.exclude || c.d.treasure) continue;
+    if (c.d.artOnly && !opts.artifact) continue;
     if (c.d.mana && !(isCreature(c) && c.sick && !has(c, 'haste'))) {
       const units = unitsOf(c);
       if (forsaken && c.d.colorlessMana) units.push(...units.filter(u => u === 'C'));
@@ -638,6 +662,7 @@ function payOpts(c, ctx = {}) {
   const pi = ctx.p;
   const o = {};
   if (c.d.improvise) o.improvise = true;
+  if (isArtifact(c)) o.artifact = true;
   if (c.d.convoke) o.convoke = true;
   if (pi != null && isArtifact(c) && perms(pi).some(x => x.name === 'Chief Engineer')) o.convoke = true;
   return o;
@@ -649,6 +674,7 @@ function costOf(pi, c, ctx = {}) {
   if (ctx.free) return mkCost(0, []);
   let base;
   if (ctx.alt) base = toCost(ctx.alt.mc);
+  else if (ctx.from === 'gy' && d.flashbackMC) base = toCost(d.flashbackMC);
   else if (ctx.from === 'exile' && d.foretellMC) base = toCost(d.foretellMC);
   else if (ctx.from === 'madness') base = toCost(d.madnessMC);
   else base = toCost(d.mc || '');
@@ -673,6 +699,28 @@ async function emit(evt, payload) {
       if (G.over) return;
     }
   }
+  // abilities that work from the graveyard
+  for (const pi of apnap()) for (const s of P(pi).gy.slice()) {
+    const h = s.d.gyOn && s.d.gyOn[evt];
+    if (h && s.zone === 'gy') { await h(s, payload); if (G.over) return; }
+  }
+}
+function hasLandType(pi, t) { return perms(pi).some(l => isLand(l) && ((l.d.sub || '').split(' ').includes(t) || l.name === t)); }
+function setMonarch(pi) {
+  if (G.monarch === pi || pi == null) return;
+  G.monarch = pi;
+  log(`${P(pi).name} becomes the monarch.`);
+  // Palace Jailer: exiled until an opponent of the jailer's controller becomes the monarch
+  G.jailed = (G.jailed || []).filter(j => {
+    if (j.by !== pi && !P(j.by).lost) { if (j.card.zone === 'exile') { enterBF(j.card, j.card.owner, {}); log(`${j.card.name} returns from Palace Jailer's exile.`); } return false; }
+    return true;
+  });
+}
+async function mill(pi, n) {
+  const lib = P(pi).library, out = [];
+  for (let i = 0; i < n && lib.length; i++) { const c = lib[lib.length - 1]; moveTo(c, 'gy'); out.push(c); }
+  if (out.length) log(`${P(pi).name} mills ${out.map(c => c.name).join(', ')}.`);
+  return out;
 }
 
 /* ---------------- stack ---------------- */
@@ -702,7 +750,7 @@ async function pushAbility(src, pi, label, ctx, resolve) {
   const it = { kind: 'ability', src, p: pi, ctx, label: `${src.name}: ${label}`, resolve, id: UID++ };
   G.stack.push(it);
   await announceTargets(ctx);
-  log(`${P(pi).name}: ${stackLabel(it)}`, pi === BOT ? 'bot' : 'me');
+  log(`${P(pi).name}: ${stackLabel(it)}`, pi !== HUMAN ? 'bot' : 'me');
   return it;
 }
 /* a triggered ability with optional targets. choose returns false to skip. */
@@ -738,7 +786,7 @@ async function resolveItem(it) {
       log(`${c.name} resolves.`);
       await d.spell(ctx);
       if (c.zone === 'stack') {
-        if (ctx.exileAfter) { c.zone = null; moveTo(c, 'exile'); }
+        if (ctx.exileAfter || ctx.from === 'gy') { c.zone = null; moveTo(c, 'exile'); }
         else { c.zone = null; moveTo(c, 'gy'); }
       }
     } else {
@@ -747,7 +795,7 @@ async function resolveItem(it) {
         if (!tOK(ctx, t)) { c.zone = null; moveTo(c, 'gy'); return; }
         await enterBF(c, it.p, { cast: true, ctx, attachTo: t });
       } else {
-        await enterBF(c, it.p, { cast: true, ctx, x: ctx.x });
+        await enterBF(c, it.p, { cast: true, ctx, x: ctx.x, blitz: !!(ctx.alt && ctx.alt.key === 'blitz') });
       }
     }
   } else {
@@ -771,12 +819,16 @@ async function runStack() {
           if (act && act.type !== 'pass') { await performAction(top.p, act); continue; }
         }
       }
-      const responder = opp(top.p);
-      const before = G.stack.length;
-      const acted = await offerResponse(responder, top);
+      let acted = false;
+      for (const responder of apnap()) {
+        if (responder === top.p) continue;
+        const before = G.stack.length;
+        const a = await offerResponse(responder, top);
+        if (G.over) break;
+        if ((a && G.stack.length > before) || G.stack.indexOf(top) < 0) { acted = true; break; }
+      }
       if (G.over) break;
-      if (acted && G.stack.length > before) continue;
-      if (G.stack.indexOf(top) < 0) continue; // countered or removed
+      if (acted) continue;
       // let the controller add something on top (bot only, e.g. protection) - skip for simplicity
       G.stack.splice(G.stack.indexOf(top), 1);
       if (typeof UI !== 'undefined') UI.render();
@@ -821,8 +873,9 @@ async function sba() {
       else if (Object.values(pl.cmdDmg).some(v => v >= 21)) why = 'took 21 commander damage';
       if (why) { pl.lost = true; log(`${pl.name} loses: ${why}.`, 'big'); }
     }
-    const losers = G.players.filter(p => p.lost);
-    if (losers.length) { G.over = true; G.winner = losers.length === 2 ? null : G.players.find(p => !p.lost).idx; return; }
+    for (const pl of G.players) if (pl.lost && !pl.eliminated) eliminate(pl.idx);
+    const alive = living();
+    if (P(HUMAN).lost || alive.length <= 1) { G.over = true; G.winner = P(HUMAN).lost ? (alive.length ? alive[0] : null) : HUMAN; return; }
     const dying = [];
     for (const c of allPerms()) {
       if (!isCreature(c)) continue;
@@ -841,7 +894,7 @@ async function sba() {
         if (!t || !isCreature(t) || isCreature(c)) { c.attachedTo = null; changed = true; }
       }
     }
-    for (const pi of [0, 1]) {
+    for (const pi of living()) {
       const legends = perms(pi).filter(c => isLegendary(c) && !c.token);
       const seen = {};
       const extra = [];
@@ -865,10 +918,10 @@ function hasFlash(pi, c) {
 }
 function castRestricted(pi) {
   // Conqueror's Flail: opponents can't cast spells during your turn
-  const o = opp(pi);
-  if (G.active === o && perms(o).some(c => c.name === "Conqueror's Flail" && c.attachedTo != null)) return true;
+  const a = G.active;
+  if (a !== pi && perms(a).some(c => c.name === "Conqueror's Flail" && c.attachedTo != null)) return true;
   // Sandswirl Wanderglyph: each opponent who attacked you this turn can't cast spells
-  if (G.tf.attacked[pi] && perms(o).some(c => c.name === 'Sandswirl Wanderglyph')) return true;
+  for (const o of (G.tf.attackedPlayers[pi] || [])) if (perms(o).some(c => c.name === 'Sandswirl Wanderglyph')) return true;
   return false;
 }
 function timingOK(pi, c, from) {
@@ -900,9 +953,9 @@ async function castSpell(pi, c, from, opt = {}) {
   c.zone = 'stack'; c.zcc++;
   const it = { kind: 'spell', card: c, p: pi, ctx, label: c.name + (ctx.modeLabel ? ` (${ctx.modeLabel})` : ''), id: UID++ };
   G.stack.push(it);
-  log(`${P(pi).name} casts ${stackLabel(it)}${+cost ? ` (paid ${cost})` : ''}.`, pi === BOT ? 'bot' : 'me');
+  log(`${P(pi).name} casts ${stackLabel(it)}${+cost ? ` (paid ${cost})` : ''}.`, pi !== HUMAN ? 'bot' : 'me');
   G.tf.spellsCast[pi]++;
-  if (pi === BOT && !c.token) { G.botRecent = [c.id, ...(G.botRecent || []).filter(x => x !== c.id)].slice(0, 6); }
+  if (pi !== HUMAN && !c.token) { G.botRecent = [c.id, ...(G.botRecent || []).filter(x => x !== c.id)].slice(0, 6); }
   await announceTargets(ctx);
   await emit('cast', { pi, card: c, ctx, it });
   if (typeof UI !== 'undefined') UI.render();
@@ -979,7 +1032,7 @@ async function activate(pi, c, ab) {
   if (ab.oncePerTurn) c.tmp['used_' + ab.id] = true;
   if (ab.preCost) await ab.preCost(ctx);
   if (ab.sacSelf) { ctx.lki = snap(c); await sacrifice(c); }
-  if (ab.noStack) { await ab.resolve(ctx); log(`${P(pi).name}: ${c.name}: ${ab.label}.`, pi === BOT ? 'bot' : 'me'); }
+  if (ab.noStack) { await ab.resolve(ctx); log(`${P(pi).name}: ${c.name}: ${ab.label}.`, pi !== HUMAN ? 'bot' : 'me'); }
   else await pushAbility(c, pi, ab.label, ctx, ab.resolve);
   if (typeof UI !== 'undefined') UI.render();
   return true;
@@ -1002,6 +1055,7 @@ function legalActionsFor(pi, c, zone) {
           acts.push({ type: 'cast', card: c, from: 'hand', alt, label: alt.label, cost: ac, ok: canPay(pi, ac, payOpts(c, { p: pi })) });
         }
       }
+      if (c.d.cycling) { const cy = c.d.cycling; acts.push({ type: 'cycle', card: c, label: cy.label, cost: toCost(cy.mc), ok: canPay(pi, cy.mc, {}) }); }
       if (c.d.foretell != null && G.active === pi && !castRestricted(pi)) acts.push({ type: 'foretell', card: c, label: 'Foretell', cost: 2, ok: canPay(pi, 2, {}) });
     }
   } else if (zone === 'cz') {
@@ -1026,6 +1080,8 @@ function legalActionsFor(pi, c, zone) {
       if (c.ctrl === pi && timing) acts.push({ type: 'ability', card: c, ab, label: (ab.labelFn && ab.labelFn()) || ab.label, cost, ok: usable });
     }
   } else if (zone === 'gy') {
+    if (c.d.flashbackMC && timingOK(pi, c, 'gy')) { const cost = costOf(pi, c, { p: pi, from: 'gy' }); acts.push({ type: 'cast', card: c, from: 'gy', label: 'Cast with flashback', cost, ok: canPay(pi, cost, payOpts(c, { p: pi })) && (!c.d.canCast || c.d.canCast({ p: pi, card: c, from: 'gy', targets: [] })) }); }
+    for (const alt of (c.d.alts || []).filter(a => a.fromGY)) if (timingOK(pi, c, 'gy') && (!alt.can || alt.can(c, pi))) { const cost = costOf(pi, c, { p: pi, from: 'gy', alt }); acts.push({ type: 'cast', card: c, from: 'gy', alt, label: alt.label + ' (from graveyard)', cost, ok: canPay(pi, cost, {}) }); }
     for (const ab of c.d.abilities.filter(a => a.fromGY)) {
       if (c.owner !== pi) continue;
       const ok = (!ab.speed || ab.speed !== 'sorcery' || sorceryOK(pi)) && (!ab.can || ab.can(c)) && canPay(pi, ab.cost || 0, {});
@@ -1059,6 +1115,16 @@ async function performAction(pi, act) {
     return true;
   }
   if (act.type === 'cast') return await castSpell(pi, act.card, act.from, { alt: act.alt });
+  if (act.type === 'cycle') {
+    const c = act.card, cy = c.d.cycling;
+    if (!canPay(pi, cy.mc, {})) return false;
+    await pay(pi, cy.mc, {});
+    moveTo(c, 'gy');
+    log(`${P(pi).name} cycles ${c.name}.`);
+    if (cy.search) { const picks = await searchLibrary(pi, cy.search, { prompt: cy.label, ai: cs => AIH.pickLands(pi, cs, 1) }); for (const x of picks) moveTo(x, 'hand'); }
+    else await drawCards(pi, 1);
+    return true;
+  }
   if (act.type === 'foretell') {
     if (!canPay(pi, 2, {})) return false;
     await pay(pi, 2, {});
@@ -1080,9 +1146,11 @@ function mkPlayer(idx, name, isBot) {
   };
 }
 function freshTurnFlags() {
+  const n = G ? G.players.length : 2;
+  const z = (v) => Array.from({ length: n }, () => v);
   return {
-    lifeGained: [0, 0], drawn: [0, 0], spellsCast: [0, 0], attacked: [false, false],
-    died: false, deaths: [], moonglove: new Set(), cantAttack: [false, false], aiTried: new Set(),
+    lifeGained: z(0), drawn: z(0), spellsCast: z(0), attacked: z(false), attackedPlayers: {},
+    died: false, deaths: [], moonglove: new Set(), cantAttack: z(false), aiTried: new Set(),
     hitBy: {},
   };
 }
@@ -1098,23 +1166,39 @@ function buildDeck(pi, list, commander) {
   }
   shuffle(pl.library);
 }
-function newGame(botKey, opts = {}) {
+function newGame(botKeys, opts = {}) {
   UID = 1;
+  if (!Array.isArray(botKeys)) botKeys = [botKeys];
+  const multi = botKeys.length > 1;
+  const players = [mkPlayer(0, opts.humanName || 'You', !!opts.humanIsBot)];
+  botKeys.forEach((k, i) => players.push(mkPlayer(i + 1, multi ? `Bot ${i + 1} (${DECKS[k].short || k})` : 'Bot', true)));
   G = {
-    turn: 0, active: 0, phase: 'setup', players: [mkPlayer(0, opts.humanName || 'You', !!opts.humanIsBot), mkPlayer(1, DECKS[botKey].botName, true)],
+    turn: 0, active: 0, phase: 'setup', players,
     stack: [], log: [], over: false, winner: null, strip: {}, sephiroth: {}, tf: null,
-    monarch: null, combat: null, untilNext: [], botKey, delayed: [], dungeon: [0, 0],
+    monarch: null, combat: null, untilNext: [], botKey: botKeys.join('+'), botKeys, delayed: [], dungeon: {}, focus: {},
   };
   G.tf = freshTurnFlags();
   const myDeck = opts.humanDeck || 'shay';
   buildDeck(HUMAN, DECKS[myDeck].list, DECKS[myDeck].commander);
-  buildDeck(BOT, DECKS[botKey].list, DECKS[botKey].commander);
   G.players[HUMAN].deckKey = myDeck;
-  G.players[BOT].deckKey = botKey;
+  botKeys.forEach((k, i) => { buildDeck(i + 1, DECKS[k].list, DECKS[k].commander); G.players[i + 1].deckKey = k; });
   return G;
 }
+function eliminate(pi) {
+  const pl = P(pi);
+  pl.eliminated = true;
+  log(`${pl.name} is out of the game.`, 'big');
+  // everything that player owns leaves; things they control but don't own go back
+  for (const q of G.players) for (const c of q.bf.slice()) {
+    if (c.owner === pi) { const i = q.bf.indexOf(c); q.bf.splice(i, 1); c.zone = null; }
+    else if (c.ctrl === pi) { gainControl(c, c.owner); }
+  }
+  G.stack = G.stack.filter(it => it.p !== pi);
+  for (const q of G.players) for (const c of q.bf) if (c.attachedTo != null && !findPerm(c.attachedTo)) c.attachedTo = null;
+  if (G.monarch === pi) { const nm = pi === G.active ? nextPlayer(pi) : G.active; G.monarch = null; if (!P(nm).lost) setMonarch(nm); }
+}
 async function mulligans() {
-  for (const pi of [0, 1]) {
+  for (const pi of G.players.map(p => p.idx)) {
     const pl = P(pi);
     let taken = 0;
     while (true) {
@@ -1141,14 +1225,14 @@ async function mulligans() {
 
 /* ---------------- turn structure ---------------- */
 async function gameLoop() {
-  G.active = Math.random() < 0.5 ? HUMAN : BOT;
-  log(`${P(G.active).name} ${G.active === HUMAN ? 'go' : 'goes'} first.`, 'big');
+  G.active = Math.floor(Math.random() * G.players.length);
+  log(`${P(G.active).name} ${G.active === HUMAN ? 'go' : 'goes'} first.${G.players.length > 2 ? ` Turn order: ${G.players.map(p => p.name).join(', ')}.` : ''}`, 'big');
   await mulligans();
   while (!G.over) {
     await takeTurn(G.active);
     if (G.over) break;
-    G.active = opp(G.active);
-    if (G.turn > 400) { G.over = true; G.winner = null; log('Turn limit reached. Draw.'); }
+    G.active = nextPlayer(G.active);
+    if (G.turn > 400 * Math.max(1, G.players.length - 1)) { G.over = true; G.winner = null; log('Turn limit reached. Draw.'); }
   }
   if (typeof UI !== 'undefined' && UI.gameOver) UI.gameOver();
 }
@@ -1199,11 +1283,13 @@ async function takeTurn(ap) {
   await mainPhase(ap);
   if (G.over) return;
   await phase('end');
+  { const due = G.delayed.filter(d => d.at === 'endStep'); G.delayed = G.delayed.filter(d => d.at !== 'endStep'); for (const d of due) await d.fn(); }
   await emit('endStep', { pi: ap });
   if (G.monarch === ap) { log(`${pl.name} draws for being the monarch.`); await drawCards(ap, 1); }
   await runStack(); await sba(); if (G.over) return;
-  if (ap === BOT) await humanWindow('Bot end step: last chance this turn.', 'end');
-  else await AI.opponentEndStep(BOT);
+  if (ap !== HUMAN) await humanWindow(`${P(ap).name}'s end step: last chance this turn.`, 'end');
+  const nx = nextPlayer(ap);
+  if (nx !== HUMAN && nx !== ap) await AI.opponentEndStep(nx);
   await runStack(); await sba(); if (G.over) return;
   await phase('cleanup');
   await cleanup(ap);
@@ -1243,8 +1329,8 @@ async function cleanup(ap) {
 }
 
 /* ---------------- combat ---------------- */
-function attackTax(ap) {
-  const dp = opp(ap);
+function attackTax(ap, dp) {
+  if (dp == null) dp = G.combat ? G.combat.dp : opp(ap);
   return perms(dp).filter(c => c.name === 'Ghostly Prison' || c.name === 'Propaganda').length * 2;
 }
 function canAttack(c) {
@@ -1252,6 +1338,7 @@ function canAttack(c) {
   if (c.sick && !has(c, 'haste')) return false;
   if (c.tmp.cantAttack || attachments(c).some(a => a.name === 'Compulsory Rest')) return false;
   if (has(c, 'defender')) return false;
+  if (c.d.attackIf && !c.d.attackIf(c)) return false;
   return true;
 }
 function canBlock(b, a) {
@@ -1267,26 +1354,33 @@ function canBlock(b, a) {
     if (!isArtifact(b) && !shares) return false;
   }
   if (sa.kw.has('nonbasicLandwalk') && perms(b.ctrl).some(l => isLand(l) && !isBasic(l))) return false;
+  if (sa.kw.has('swampwalk') && hasLandType(b.ctrl, 'Swamp')) return false;
+  if (b.d.blockIf && !b.d.blockIf(b)) return false;
   for (const col of colorsOf(b)) if (sa.prot.has(col)) return false;
   if (sa.prot.has('all')) return false;
   return true;
 }
 async function combatPhase(ap) {
-  const dp = opp(ap);
   await phase('combat');
   await emit('beginCombat', { pi: ap });
   await runStack(); await sba(); if (G.over) return;
-  if (ap === BOT) await humanWindow('Bot beginning of combat. Tap or kill attackers now.', 'boc');
+  if (ap !== HUMAN) await humanWindow(`${P(ap).name}'s beginning of combat. Tap or kill attackers now.`, 'boc');
   if (G.over) return;
   await phase('attackers');
   let attackers = [];
+  let dp = P(ap).isBot ? AI.pickDefender(ap) : opp(ap);
+  G.attackTarget = dp;
   if (G.tf.cantAttack[ap]) { log(`${P(ap).name} can't attack this turn.`); }
-  else if (P(ap).isBot) attackers = await AI.declareAttackers(ap);
-  else attackers = await UI.declareAttackers();
+  else if (P(ap).isBot) attackers = await AI.declareAttackers(ap, dp);
+  else { attackers = await UI.declareAttackers(); dp = G.attackTarget != null && !P(G.attackTarget).lost && G.attackTarget !== ap ? G.attackTarget : opp(ap); G.focus[ap] = dp; }
   attackers = attackers.filter(c => c.zone === 'bf' && canAttack(c));
+  if (G.monarch === dp && perms(dp).some(c => c.name === 'Queen Mother Ramonda')) {
+    const small = attackers.filter(c => pow(c) <= 2);
+    if (small.length) { log(`Queen Mother Ramonda: creatures with power 2 or less can't attack ${P(dp).name}.`); attackers = attackers.filter(c => pow(c) > 2); }
+  }
   // must-attack (juggernauts)
   for (const c of creatures(ap)) if (c.d.mustAttack && canAttack(c) && !attackers.includes(c)) attackers.push(c);
-  const tax = attackTax(ap);
+  const tax = attackTax(ap, dp);
   if (tax && attackers.length) {
     const maxN = Math.floor(manaAvail(ap) / tax);
     if (attackers.length > maxN) { attackers = attackers.slice(0, maxN); }
@@ -1296,12 +1390,13 @@ async function combatPhase(ap) {
   for (const c of attackers) if (!has(c, 'vigilance')) c.tapped = true;
   G.combat = { ap, dp, atk: attackers.map(c => ({ c, blockers: [] })) };
   G.tf.attacked[ap] = true;
-  log(`${P(ap).name} attacks with ${attackers.map(c => `${c.name} (${pow(c)}/${tou(c)})`).join(', ')}.`, ap === BOT ? 'bot big' : 'me big');
+  G.tf.attackedPlayers[ap] = [...(G.tf.attackedPlayers[ap] || []), dp];
+  log(`${P(ap).name} attacks ${dp === HUMAN ? 'you' : P(dp).name} with ${attackers.map(c => `${c.name} (${pow(c)}/${tou(c)})`).join(', ')}.`, ap !== HUMAN ? 'bot big' : 'me big');
   for (const c of attackers) await emit('attacks', { attacker: c, pi: ap });
   await emit('attackDeclared', { pi: ap, attackers });
   await runStack(); await sba(); if (G.over) return;
-  if (dp === HUMAN) await humanWindow('Bot is attacking. Respond before blocks?', 'atk');
-  else await AI.defenderWindow(dp);
+  if (dp === HUMAN) await humanWindow(`${P(ap).name} is attacking you. Respond before blocks?`, 'atk');
+  else { await AI.defenderWindow(dp); if (ap !== HUMAN && SETTINGS.stopEverySpell) await humanWindow(`${P(ap).name} is attacking ${P(dp).name}.`, 'atk'); }
   await runStack(); await sba(); if (G.over) return;
   G.combat.atk = G.combat.atk.filter(a => a.c.zone === 'bf' && a.c.ctrl === ap);
   if (!G.combat.atk.length) { G.combat = null; return; }
@@ -1319,7 +1414,7 @@ async function combatPhase(ap) {
   await emit('blocksDeclared', { pi: ap });
   await runStack(); await sba(); if (G.over) return;
   // after-blocks windows
-  if (P(ap).isBot) { await AI.attackerTricks(ap); await runStack(); await sba(); if (G.over) return; await humanWindow('Blocks are set. Last chance before damage.', 'dmg'); }
+  if (P(ap).isBot) { await AI.attackerTricks(ap); await runStack(); await sba(); if (G.over) return; if (dp === HUMAN || SETTINGS.stopEverySpell) await humanWindow('Blocks are set. Last chance before damage.', 'dmg'); else if (!P(dp).isBot) {} else await AI.defenderTricks(dp); }
   else { await humanWindow('Blocks are set. Combat tricks before damage?', 'dmg'); if (G.over) return; await AI.defenderTricks(dp); }
   await runStack(); await sba(); if (G.over) return;
   await phase('damage');
@@ -1368,7 +1463,7 @@ async function damageStep(first) {
   }
   for (const e of events) {
     const dealt = dealDamage(e.src, e.tgt, e.n, { combat: true });
-    if (dealt > 0 && e.tgt.isPlayer) { hitPlayer.push({ src: e.src, n: dealt }); G.tf.hitBy[e.src.id] = true; }
+    if (dealt > 0 && e.tgt.isPlayer) { hitPlayer.push({ src: e.src, n: dealt }); G.tf.hitBy[e.src.id] = [...new Set([...(G.tf.hitBy[e.src.id] || []), dp])]; }
   }
   if (events.length) {
     const toP = hitPlayer.reduce((a, h) => a + h.n, 0);
@@ -1387,7 +1482,7 @@ async function venture(pi) {
   const r = G.dungeon[pi];
   if (r === 1) { log(`${P(pi).name} ventures: Cave Entrance (scry 1).`); await scry(pi, 1); }
   else if (r === 2) { log(`${P(pi).name} ventures: Goblin Lair.`); await createToken(pi, 'Goblin', 1); }
-  else if (r === 3) { log(`${P(pi).name} ventures: Dark Pool (drain 1).`); loseLife(opp(pi), 1); gainLife(pi, 1); }
+  else if (r === 3) { log(`${P(pi).name} ventures: Dark Pool (each opponent loses 1).`); for (const o of opps(pi)) loseLife(o, 1); gainLife(pi, 1); }
   else { log(`${P(pi).name} ventures: Temple of Dumathoin (draw), dungeon complete.`); await drawCards(pi, 1); }
 }
 function untilYourNextTurn(pi, end) { G.untilNext.push({ pi, end }); }

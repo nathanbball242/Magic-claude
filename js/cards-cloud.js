@@ -108,7 +108,7 @@ C('Hellkite Tyrant', {
       for (const a of arts) gainControl(a, s.ctrl);
       if (arts.length) log(`Hellkite Tyrant steals ${arts.map(a => a.name).join(', ')}.`, 'warn');
     },
-    upkeep: async (s, { pi }) => { if (pi === s.ctrl && artifactsOf(pi).length >= 20) { P(opp(pi)).lost = true; log('Hellkite Tyrant: 20 artifacts. Game over.', 'big'); await sba(); } },
+    upkeep: async (s, { pi }) => { if (pi === s.ctrl && artifactsOf(pi).length >= 20) { for (const o of opps(pi)) P(o).lost = true; log('Hellkite Tyrant: 20 artifacts. Game over.', 'big'); await sba(); } },
   },
 });
 async function kujataChapter(s, n) {
@@ -126,7 +126,7 @@ async function kujataChapter(s, n) {
     await trigger(s, s.ctrl, 'III — Fire: discard, draw two, burn', null, async () => {
       const d = await discardN(s.ctrl, 1);
       await drawCards(s.ctrl, 2);
-      if (d.length && mv(d[0]) > 0) { dealDamage(s, PL(opp(s.ctrl)), mv(d[0])); log(`Fire deals ${mv(d[0])} damage.`); }
+      if (d.length && mv(d[0]) > 0) { for (const o of opps(s.ctrl)) dealDamage(s, PL(o), mv(d[0])); log(`Fire deals ${mv(d[0])} damage to each opponent.`); }
       if (s.zone === 'bf') await sacrifice(s);
     });
   }
@@ -154,9 +154,11 @@ C('Ultimate Magic: Meteor', {
   spell: async (ctx) => {
     for (const c of allCreatures()) dealDamage(ctx.card, c, 7);
     if (ctx.from === 'exile') {
-      const cands = perms(opp(ctx.p)).filter(c => isArtifact(c) || isLand(c));
-      const k = await chooseCard(ctx.p, { prompt: 'Meteor: choose an artifact or land to destroy', cands, ai: cs => AIH.bestCard(cs) });
-      if (k) await destroy(k);
+      for (const o of opps(ctx.p)) {
+        const cands = perms(o).filter(c => isArtifact(c) || isLand(c));
+        const k = await chooseCard(ctx.p, { prompt: `Meteor: choose an artifact or land ${P(o).name} controls to destroy`, cands, ai: cs => AIH.bestCard(cs) });
+        if (k) await destroy(k);
+      }
     }
     await sba();
   },
@@ -283,7 +285,7 @@ C('Rampant Growth', { mc: '{1}{G}', colors: 'G', types: ['Sorcery'], role: 'ramp
 C('Farseek', { mc: '{1}{G}', colors: 'G', types: ['Sorcery'], role: 'ramp', text: 'Search your library for a Plains, Island, Swamp, or Mountain card, put it onto the battlefield tapped, then shuffle.', spell: async (ctx) => { await fetchBasicsToBF(ctx.p, 1, { tapped: true, filter: c => ['Plains', 'Island', 'Swamp', 'Mountain'].includes(c.name) }); } });
 C('Secret Rendezvous', {
   mc: '{1}{W}{W}', colors: 'W', types: ['Sorcery'], role: 'draw', text: 'You and target opponent each draw three cards.',
-  choose: (ctx) => { const o = PL(opp(ctx.p)); if (!canTarget(o, ctx.p)) return false; addTarget(ctx, o); return true; },
+  choose: (ctx) => { const o = PL(pickOpp(ctx.p)); if (!canTarget(o, ctx.p)) return false; addTarget(ctx, o); return true; },
   spell: async (ctx) => { await drawCards(ctx.p, 3); if (tOK(ctx, ctx.targets[0])) await drawCards(ctx.targets[0].pi, 3); },
 });
 C('Dispatch', {
@@ -496,7 +498,7 @@ C("Akroma's Will", {
 EQ('Shadowspear', {
   mc: '{1}', types: ['Legendary', 'Artifact'], equip: 2, text: 'Equipped creature gets +1/+1 and has trample and lifelink.\n{1}: Permanents your opponents control lose hexproof and indestructible until end of turn.\nEquip {2}',
   attachBuff: () => ({ p: 1, t: 1, kw: ['trample', 'lifelink'] }),
-  abilities: [{ id: 'strip', label: '{1}: Opponents lose hexproof and indestructible', cost: 1, speed: 'instant', hideFromAutoStop: true, resolve: async (ctx) => { if (G.strip[opp(ctx.p)] !== 'full') G.strip[opp(ctx.p)] = 'hi'; log(`Shadowspear: all ${perms(opp(ctx.p)).length} permanents ${P(opp(ctx.p)).name} controls lose hexproof and indestructible until end of turn.`); } }],
+  abilities: [{ id: 'strip', label: '{1}: Opponents lose hexproof and indestructible', cost: 1, speed: 'instant', hideFromAutoStop: true, resolve: async (ctx) => { for (const o of opps(ctx.p)) if (G.strip[o] !== 'full') G.strip[o] = 'hi'; log(`Shadowspear: permanents ${P(ctx.p).name}'s opponents control lose hexproof and indestructible until end of turn.`); } }],
 });
 EQ('Blackblade Reforged', {
   mc: '{2}', types: ['Legendary', 'Artifact'], equip: 7, equipLegend: 3, text: 'Equipped creature gets +1/+1 for each land you control.\nEquip legendary creature {3}\nEquip {7}',

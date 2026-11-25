@@ -1,6 +1,6 @@
 // Browser smoke test: opens index.html from disk at phone size, keeps the hand,
 // plays lands and cheap creatures, passes everything else, and reports page errors.
-// Usage: node tools/ui-smoke.js <screenshot-dir> [cloud|sai] [shay|elenda]
+// Usage: node tools/ui-smoke.js <screenshot-dir> [deck or deck+deck+... e.g. cloud+sai+revival] [shay|elenda]
 const { chromium } = require('playwright');
 const path = require('path');
 (async () => {
@@ -14,8 +14,9 @@ const path = require('path');
   await p.goto('file://' + path.join(__dirname, '..', 'index.html'));
   await p.screenshot({ path: out + '/start.png' });
   await p.selectOption('#setSpeed', '120');
-  await p.click(`.opp-card[data-deck="${deck}"]`);
+  await p.evaluate((d) => { SETTINGS.botDecks = d.split('+'); }, deck);
   if (process.argv[4]) await p.click(`.opp-card[data-mine="${process.argv[4]}"]`);
+  await p.click('#addBot').catch(() => {}); await p.evaluate((d) => { SETTINGS.botDecks = d.split('+'); }, deck);
   await p.screenshot({ path: out + '/start.png', fullPage: true });
   await p.click('#startBtn');
   await p.waitForSelector('#mlKeep');

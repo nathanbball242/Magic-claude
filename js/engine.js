@@ -878,6 +878,10 @@ async function castSpell(pi, c, from, opt = {}) {
   const d = c.d;
   const ctx = { p: pi, card: c, from, targets: [], x: 0, extra: 0, alt: opt.alt || null, free: !!opt.free, mode: null, hint: opt.hint || null };
   if (d.canCast && !d.canCast(ctx)) { if (!P(pi).isBot) UI.toast(`${c.name}: no legal way to cast right now.`); return false; }
+  if (!P(pi).isBot && d.role === 'wipe' && !['Unstable Glyphbridge', "Cloud's Limit Break"].includes(c.name)) {
+    const shay = creatures(pi).find(x => x.isCmd && !has(x, 'indestructible'));
+    if (shay && !(await UI.confirm(`${c.name} will also destroy ${shay.name}, so bounties will not be collected. Cast it anyway?`, shay))) return false;
+  }
   if (d.choose) {
     const ok = await d.choose(ctx);
     if (!ok) return false;

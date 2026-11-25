@@ -38,10 +38,10 @@ for (const [n, col] of [['Plains', 'W'], ['Swamp', 'B'], ['Island', 'U'], ['Moun
 /* ---------------- commander ---------------- */
 C('Shay Cormac', {
   mc: '{W}{B}', colors: 'WB', types: ['Legendary', 'Creature'], sub: 'Human Knight Rogue', pt: [1, 1], role: 'creature',
-  text: "{1}: Permanents your opponents control lose hexproof, indestructible, protection, shroud, and ward until end of turn.\nWhenever a creature an opponent controls becomes the target of a spell or ability you control, put a bounty counter on that creature.\nWhenever a creature with a bounty counter on it dies, put two +1/+1 counters on Shay Cormac.",
+  text: "{1}: Permanents your opponents control lose hexproof, indestructible, protection, shroud, and ward until end of turn. (House rule: also put a bounty counter on each creature your opponents control.)\nWhenever a creature an opponent controls becomes the target of a spell or ability you control, put a bounty counter on that creature.\nWhenever a creature with a bounty counter on it dies, put two +1/+1 counters on Shay Cormac.",
   abilities: [{
-    id: 'strip', label: "{1}: Opponents' permanents lose hexproof, indestructible, protection, shroud, ward", cost: 1, speed: 'instant', hideFromAutoStop: true,
-    resolve: async (ctx) => { const o = opp(ctx.p); G.strip[o] = 'full'; const ps = perms(o); log(`Shay Cormac: all ${ps.length} permanents ${P(o).name} controls lose hexproof, indestructible, protection, shroud and ward until end of turn${ps.length ? ` (${ps.map(c => c.name.split(',')[0]).join(', ')})` : ''}. Permanents it plays later this turn are affected too.`, 'bounty'); },
+    id: 'strip', label: "{1}: Strip opponents' protection and put a bounty counter on each of their creatures", cost: 1, speed: 'instant', hideFromAutoStop: true,
+    resolve: async (ctx) => { const o = opp(ctx.p); G.strip[o] = 'full'; const ps = perms(o); const tagged = ps.filter(isCreature); for (const c of tagged) addCounters(c, 'bounty', 1); if (tagged.length) log(`Shay Cormac puts a bounty counter on every creature ${P(o).name} controls (${tagged.length}).`, 'bounty'); log(`Shay Cormac: all ${ps.length} permanents ${P(o).name} controls lose hexproof, indestructible, protection, shroud and ward until end of turn${ps.length ? ` (${ps.map(c => c.name.split(',')[0]).join(', ')})` : ''}. Permanents it plays later this turn are affected too.`, 'bounty'); },
   }],
   on: {
     targeted: async (s, { byPi, target }) => {
@@ -51,9 +51,12 @@ C('Shay Cormac', {
       }
     },
     dies: async (s, { lki, mult }) => {
-      if ((lki.counters.bounty || 0) > 0 && s.zone === 'bf') {
+      if ((lki.counters.bounty || 0) <= 0) return;
+      if (s.zone === 'bf') {
         addCounters(s, 'p1p1', 2 * mult);
         log(`Bounty collected on ${lki.name}: Shay Cormac gets ${2 * mult} +1/+1 counters${mult > 1 ? ' (Teysa)' : ''}.`, 'bounty');
+      } else {
+        log(`Bounty on ${lki.name} lost: Shay Cormac is not on the battlefield to collect it.`, 'warn');
       }
     },
   },

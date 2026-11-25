@@ -10,7 +10,7 @@ const HUMAN = 0, BOT = 1;
 let G = null;
 let UID = 1;
 const CARDS = {};
-const SETTINGS = { botDelay: 450, stopEverySpell: false, askTithe: true };
+const SETTINGS = { botDelay: 450, stopEverySpell: false, askTithe: true, shayHouseRule: false, myDeck: 'shay' };
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -255,6 +255,8 @@ function gainLife(pi, n) {
   if (n <= 0 || P(pi).lifeLocked) return;
   P(pi).life += n;
   G.tf.lifeGained[pi] += n;
+  const bonds = perms(pi).filter(c => c.name === 'Sanguine Bond').length;
+  if (bonds) { loseLife(opp(pi), n * bonds); log(`Sanguine Bond: ${P(opp(pi)).name} loses ${n * bonds}.`); }
 }
 function loseLife(pi, n) {
   if (n <= 0 || P(pi).lifeLocked) return;
@@ -879,7 +881,7 @@ async function castSpell(pi, c, from, opt = {}) {
   const ctx = { p: pi, card: c, from, targets: [], x: 0, extra: 0, alt: opt.alt || null, free: !!opt.free, mode: null, hint: opt.hint || null };
   if (d.canCast && !d.canCast(ctx)) { if (!P(pi).isBot) UI.toast(`${c.name}: no legal way to cast right now.`); return false; }
   if (!P(pi).isBot && d.role === 'wipe' && !['Unstable Glyphbridge', "Cloud's Limit Break"].includes(c.name)) {
-    const shay = creatures(pi).find(x => x.isCmd && !has(x, 'indestructible'));
+    const shay = creatures(pi).find(x => x.name === 'Shay Cormac' && !has(x, 'indestructible'));
     if (shay && !(await UI.confirm(`${c.name} will also destroy ${shay.name}, so bounties will not be collected. Cast it anyway?`, shay))) return false;
   }
   if (d.choose) {
@@ -1019,7 +1021,7 @@ function legalActionsFor(pi, c, zone) {
       const usable = abilityUsable(pi, c, ab);
       const cost = ab.baseCost ? ab.baseCost(c) : abCost(c, ab, null);
       const timing = !(ab.speed === 'sorcery' && !sorceryOK(pi));
-      if (c.ctrl === pi && timing) acts.push({ type: 'ability', card: c, ab, label: ab.label, cost, ok: usable });
+      if (c.ctrl === pi && timing) acts.push({ type: 'ability', card: c, ab, label: (ab.labelFn && ab.labelFn()) || ab.label, cost, ok: usable });
     }
   } else if (zone === 'gy') {
     for (const ab of c.d.abilities.filter(a => a.fromGY)) {
@@ -1102,9 +1104,10 @@ function newGame(botKey, opts = {}) {
     monarch: null, combat: null, untilNext: [], botKey, delayed: [], dungeon: [0, 0],
   };
   G.tf = freshTurnFlags();
-  buildDeck(HUMAN, DECKS.shay.list, DECKS.shay.commander);
+  const myDeck = opts.humanDeck || 'shay';
+  buildDeck(HUMAN, DECKS[myDeck].list, DECKS[myDeck].commander);
   buildDeck(BOT, DECKS[botKey].list, DECKS[botKey].commander);
-  G.players[HUMAN].deckKey = 'shay';
+  G.players[HUMAN].deckKey = myDeck;
   G.players[BOT].deckKey = botKey;
   return G;
 }
@@ -1251,7 +1254,7 @@ function canAttack(c) {
 }
 function canBlock(b, a) {
   if (!isCreature(b) || b.tapped || b.phased) return false;
-  if (b.tmp.cantBlock || attachments(b).some(x => x.name === 'Compulsory Rest')) return false;
+  if (b.tmp.cantBlock || b.d.cantBlock || attachments(b).some(x => x.name === 'Compulsory Rest')) return false;
   const sa = st(a), sb = st(b);
   if (sa.kw.has('unblockable') || a.tmp.unblockable) return false;
   if (sa.kw.has('onlyWalls')) return false;

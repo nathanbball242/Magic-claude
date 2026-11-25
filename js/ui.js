@@ -174,7 +174,7 @@ const UI = {
     const dmgFrom = (pi) => Object.values(P(pi).cmdDmg)[0] || 0;
     UI.el('oppBar').innerHTML = `
       <span class="pname">${esc(bot.name)}</span><span class="life ${bot.life <= 10 ? 'low' : ''}">${bot.life}</span>
-      <span class="chip ${dmgFrom(BOT) >= 14 ? 'gold' : ''}" title="Commander damage from Shay">Shay ${dmgFrom(BOT)}/21</span>
+      <span class="chip ${dmgFrom(BOT) >= 14 ? 'gold' : ''}" title="Commander damage from your commander">${esc(UI.cmdName(HUMAN))} ${dmgFrom(BOT)}/21</span>
       <span class="chip">Hand ${bot.hand.length}</span><span class="chip">Lib ${bot.library.length}</span>
       <button class="chip" data-zone="gy" data-pi="1">GY ${bot.gy.length}</button><button class="chip" data-zone="exile" data-pi="1">Exile ${bot.exile.length}</button>
       ${czChip(BOT)}${G.strip[BOT] ? `<span class="chip gold">Shields down: all ${perms(BOT).length}</span>` : ''}${G.monarch === BOT ? '<span class="chip gold">Monarch</span>' : ''}${bot.energy ? `<span class="chip">E ${bot.energy}</span>` : ''}
@@ -311,6 +311,7 @@ const UI = {
   },
 
   /* ---------------- taps ---------------- */
+  cmdName(pi) { const p = P(pi); const c = [...p.cz, ...p.bf, ...p.gy, ...p.exile, ...p.hand].find(x => x.isCmd && x.owner === pi); return c ? c.name.split(',')[0] : 'Commander'; },
   colorSummary(pi) {
     const m = manaColors(pi);
     const parts = [...'WUBRGC'].filter(k => m[k]).map(k => `${pipHTML(k)}${m[k]}`);
@@ -399,12 +400,14 @@ const UI = {
       UI.openSheet(`<div class="row-btns" style="justify-content:space-between"><h3>Menu</h3><button class="btn" id="mnClose">Close</button></div>
         <div class="settings">
           <label><input type="checkbox" id="mnStop" ${SETTINGS.stopEverySpell ? 'checked' : ''}> Let me respond to every bot spell (not only removal, wipes and attacks)</label>
+          <label><input type="checkbox" id="mnHouse" ${SETTINGS.shayHouseRule ? 'checked' : ''}> House rule: Shay's {1} ability also puts a bounty counter on every bot creature</label>
           <label><input type="checkbox" id="mnTithe" ${SETTINGS.askTithe ? 'checked' : ''}> Ask me before paying for Rhystic Study, Mystic Remora and Smothering Tithe</label>
           <label>Bot speed <select id="mnSpeed"><option value="900">Slow</option><option value="450">Normal</option><option value="120">Fast</option></select></label>
         </div>
         <button class="btn danger" id="mnConcede">Concede and start a new game</button>`, true);
       UI.el('mnSpeed').value = String(SETTINGS.botDelay);
       UI.el('mnStop').onchange = (e) => { SETTINGS.stopEverySpell = e.target.checked; saveSettings(); };
+      UI.el('mnHouse').onchange = (e) => { SETTINGS.shayHouseRule = e.target.checked; saveSettings(); };
       UI.el('mnTithe').onchange = (e) => { SETTINGS.askTithe = e.target.checked; saveSettings(); };
       UI.el('mnSpeed').onchange = (e) => { SETTINGS.botDelay = +e.target.value; saveSettings(); };
       UI.el('mnClose').onclick = () => UI.closeSheet();

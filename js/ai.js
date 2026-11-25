@@ -143,7 +143,7 @@ const AIH = {
     return [...o, ...m].slice(0, 6);
   },
   tutorPick(pi, cs) {
-    const want = ['Teysa Karlov', 'Darksteel Plate', 'Swiftfoot Boots', 'Wrath of God', 'Day of Judgment', 'Whispersilk Cloak'];
+    const want = ['Sanguine Bond', 'Butcher of Malakir', 'Massacre Wurm', 'Teysa Karlov', 'Darksteel Plate', 'Swiftfoot Boots', 'Wrath of God', 'Day of Judgment', 'Whispersilk Cloak'];
     for (const n of want) { const c = cs.find(x => x.name === n); if (c) return c; }
     return AIH.bestCard(cs.filter(c => !isLand(c))) || cs[0];
   },
@@ -371,6 +371,8 @@ const AI = {
     if (n === 'Stoneforge Mystic' && id === 'put') return P(pi).hand.some(e => isEquipment(e) && mv(e) > 2);
     if (n === 'Fighter Class') return mainPhase && myTurn;
     if (n === 'Whirler Virtuoso') return true;
+    if (n === "Wayfarer's Bauble") return myTurn && mainPhase;
+    if (n === "Commander's Sphere") return P(pi).hand.length === 0 && perms(pi).filter(isLand).length >= 6;
     if (n === 'Steel Hellkite' && id === 'x') return AIH.hellkiteX(pi, spare) > 0;
     if (n === 'Urza, Lord High Artificer') return mainPhase && myTurn && G.phase === 'main2' && spare >= 5;
     if (!myTurn || G.phase === 'end') {
@@ -453,6 +455,25 @@ const AI = {
       const ok = await castSpell(pi, prot.card, prot.from || 'hand', { hint: { protect: th.victims[0], mode: 'ind' } });
       if (ok) return true;
     }
+    // aristocrats: sacrifice doomed creatures for value before they are removed
+    const outlet = perms(pi).find(c => ['Viscera Seer', 'Carrion Feeder'].includes(c.name) && !th.victims.includes(c))
+      || perms(pi).find(c => c.name === 'Indulgent Aristocrat' && canPay(pi, 2, {}) && !th.victims.includes(c))
+      || perms(pi).find(c => ['Viscera Seer', 'Carrion Feeder'].includes(c.name));
+    const doomed = th.victims.filter(v => isCreature(v) && v.zone === 'bf' && v.ctrl === pi && !v.tmp.aiSacked);
+    if (outlet && doomed.length && th.how !== 'bounce') {
+      let any = false;
+      for (const v of doomed) {
+        if (v === outlet && doomed.length > 1) continue;
+        v.tmp.aiSacked = true;
+        G.aiSac = v;
+        if (SETTINGS.botDelay && !P(HUMAN).isBot) await sleep(SETTINGS.botDelay / 2);
+        const ok = await activate(pi, outlet, abilitiesOf(outlet).find(a => a.id === 'sac' || a.id === 'sac2'));
+        G.aiSac = null;
+        if (ok) any = true;
+        if (outlet.zone !== 'bf') break;
+      }
+      if (any) return true;
+    }
     return false;
   },
   pickProtection(pi, th) {
@@ -466,7 +487,7 @@ const AI = {
       // exile, -X/-X, bounce, aura: need hexproof, phasing, or protection from colors
       return n === 'Heroic Intervention' || n === "Teferi's Protection" || n === 'Clever Concealment' || n === "Akroma's Will";
     };
-    const ok = cands.filter(fits).filter(x => timingOK(pi, x.card, x.from) && canPay(pi, costOf(pi, x.card, { p: pi, from: x.from }), payOpts(x.card, { p: pi })));
+    const ok = cands.filter(fits).filter(x => timingOK(pi, x.card, x.from) && ((x.card.d.freeWithCommander && controlsCommander(pi)) || canPay(pi, costOf(pi, x.card, { p: pi, from: x.from }), payOpts(x.card, { p: pi }))));
     if (!ok.length) return null;
     // prefer cheap, and keep Teferi's Protection for big moments
     ok.sort((a, b) => (a.card.name === "Teferi's Protection" ? 5 : 0) + costOf(pi, a.card, { p: pi, from: a.from }) - ((b.card.name === "Teferi's Protection" ? 5 : 0) + costOf(pi, b.card, { p: pi, from: b.from })));
@@ -627,7 +648,7 @@ const AI = {
       if (AI.canCastNow(pi, c, 'hand')) await cast(c);
     }
     // instant card draw / tutors with everything left
-    for (const n of ['Whir of Invention', 'Pull from Tomorrow', 'Thirst for Knowledge']) {
+    for (const n of ['Whir of Invention', 'Pull from Tomorrow', 'Thirst for Knowledge', 'Secure the Wastes', 'Vampiric Tutor']) {
       const c = hand.find(x => x.name === n);
       if (c && AI.canCastNow(pi, c, 'hand')) await cast(c);
     }

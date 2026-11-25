@@ -4,7 +4,7 @@ const path = require('path');
 const vm = require('vm');
 
 const root = path.join(__dirname, '..', 'js');
-const files = ['engine.js', 'cards-shay.js', 'cards-cloud.js', 'cards-sai.js', 'decks.js', 'ai.js'];
+const files = ['engine.js', 'cards-shay.js', 'cards-cloud.js', 'cards-sai.js', 'cards-elenda.js', 'decks.js', 'ai.js'];
 const ctx = vm.createContext({ console, setTimeout, Math, Date, Set, Map, JSON, Promise });
 vm.runInContext('var UI = { render(){}, onLog(){}, toast(){}, gameOver(){} };', ctx);
 for (const f of files) vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
@@ -14,12 +14,12 @@ const which = process.argv[3] || 'both';
 const verbose = process.argv.includes('-v');
 
 (async () => {
-  const keys = which === 'both' ? ['cloud', 'sai'] : [which];
+  const keys = which === 'both' ? ['cloud', 'sai', 'elendaBot'] : [which];
   for (const key of keys) {
     const res = { win: 0, loss: 0, draw: 0, err: 0, turns: [] };
     for (let i = 0; i < N; i++) {
       try {
-        vm.runInContext(`SETTINGS.botDelay = 0; newGame(${JSON.stringify(key)}, { humanIsBot: true });`, ctx);
+        vm.runInContext(`SETTINGS.botDelay = 0; newGame(${JSON.stringify(key)}, { humanIsBot: true, humanDeck: ${JSON.stringify(process.argv.includes('--elenda') ? 'elenda' : 'shay')} });`, ctx);
         await vm.runInContext('gameLoop()', ctx);
         const G = vm.runInContext('G', ctx);
         if (G.winner === 0) res.win++; else if (G.winner === 1) res.loss++; else res.draw++;

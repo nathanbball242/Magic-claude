@@ -38,10 +38,10 @@ for (const [n, col] of [['Plains', 'W'], ['Swamp', 'B'], ['Island', 'U'], ['Moun
 /* ---------------- commander ---------------- */
 C('Shay Cormac', {
   mc: '{W}{B}', colors: 'WB', types: ['Legendary', 'Creature'], sub: 'Human Knight Rogue', pt: [1, 1], role: 'creature',
-  text: "{1}: Permanents your opponents control lose hexproof, indestructible, protection, shroud, and ward until end of turn. (House rule: also put a bounty counter on each creature your opponents control.)\nWhenever a creature an opponent controls becomes the target of a spell or ability you control, put a bounty counter on that creature.\nWhenever a creature with a bounty counter on it dies, put two +1/+1 counters on Shay Cormac.",
+  text: "{1}: Permanents your opponents control lose hexproof, indestructible, protection, shroud, and ward until end of turn.\nWhenever a creature an opponent controls becomes the target of a spell or ability you control, put a bounty counter on that creature.\nWhenever a creature with a bounty counter on it dies, put two +1/+1 counters on Shay Cormac.",
   abilities: [{
-    id: 'strip', label: "{1}: Strip opponents' protection and put a bounty counter on each of their creatures", cost: 1, speed: 'instant', hideFromAutoStop: true,
-    resolve: async (ctx) => { const o = opp(ctx.p); G.strip[o] = 'full'; const ps = perms(o); const tagged = ps.filter(isCreature); for (const c of tagged) addCounters(c, 'bounty', 1); if (tagged.length) log(`Shay Cormac puts a bounty counter on every creature ${P(o).name} controls (${tagged.length}).`, 'bounty'); log(`Shay Cormac: all ${ps.length} permanents ${P(o).name} controls lose hexproof, indestructible, protection, shroud and ward until end of turn${ps.length ? ` (${ps.map(c => c.name.split(',')[0]).join(', ')})` : ''}. Permanents it plays later this turn are affected too.`, 'bounty'); },
+    id: 'strip', label: "{1}: Opponents' permanents lose hexproof, indestructible, protection, shroud, ward", labelFn: () => (SETTINGS.shayHouseRule ? "{1}: Strip opponents' protection and put a bounty counter on each of their creatures (house rule)" : null), cost: 1, speed: 'instant', hideFromAutoStop: true,
+    resolve: async (ctx) => { const o = opp(ctx.p); G.strip[o] = 'full'; const ps = perms(o); const tagged = SETTINGS.shayHouseRule ? ps.filter(isCreature) : []; for (const c of tagged) addCounters(c, 'bounty', 1); if (tagged.length) log(`Shay Cormac puts a bounty counter on every creature ${P(o).name} controls (${tagged.length}).`, 'bounty'); log(`Shay Cormac: all ${ps.length} permanents ${P(o).name} controls lose hexproof, indestructible, protection, shroud and ward until end of turn${ps.length ? ` (${ps.map(c => c.name.split(',')[0]).join(', ')})` : ''}. Permanents it plays later this turn are affected too.`, 'bounty'); },
   }],
   on: {
     targeted: async (s, { byPi, target }) => {
@@ -527,3 +527,39 @@ C('Orzhov Basilica', {
     if (k) { moveTo(k, 'hand'); log(`${k.name} returns to hand.`); }
   },
 });
+
+/* ---------------- Elenda build additions ---------------- */
+C('Vampire', { token: true, colors: 'W', types: ['Creature'], sub: 'Vampire', pt: [1, 1], kw: ['lifelink'], text: 'Lifelink' });
+C('Elenda, the Dusk Rose', {
+  mc: '{2}{W}{B}', colors: 'WB', types: ['Legendary', 'Creature'], sub: 'Vampire Knight', pt: [1, 1], kw: ['lifelink'], role: 'creature',
+  text: 'Lifelink\nWhenever another creature dies, put a +1/+1 counter on Elenda, the Dusk Rose.\nWhen Elenda dies, create X 1/1 white Vampire creature tokens with lifelink, where X is Elenda\'s power.',
+  on: {
+    dies: async (s, { dead, lki, mult }) => {
+      if (dead === s) {
+        const x = Math.max(0, lki.p) * mult;
+        if (x) { if (mult > 1) log('Teysa doubles Elenda\'s death trigger.'); await createToken(lki.ctrl, 'Vampire', x); }
+        return;
+      }
+      if (s.zone === 'bf') { addCounters(s, 'p1p1', mult); log(`Elenda gets ${mult} +1/+1 counter${mult > 1 ? 's' : ''}.`); }
+    },
+  },
+});
+C('Viscera Seer', {
+  mc: '{B}', colors: 'B', types: ['Creature'], sub: 'Vampire Wizard', pt: [1, 1], role: 'creature',
+  text: 'Sacrifice a creature: Scry 1.',
+  abilities: [{
+    id: 'sac', label: 'Sacrifice a creature: Scry 1', cost: 0, speed: 'instant', hideFromAutoStop: true,
+    can: (c) => creatures(c.ctrl).length > 0,
+    choose: async (ctx) => { const k = await chooseCard(ctx.p, { prompt: 'Sacrifice which creature?', cands: creatures(ctx.p), ai: cs => (G.aiSac && cs.includes(G.aiSac) ? G.aiSac : AIH.weakest(cs)) }); if (!k) return false; ctx.sac = k; return true; },
+    preCost: async (ctx) => { await sacrifice(ctx.sac); },
+    resolve: async (ctx) => { await scry(ctx.p, 1); },
+  }],
+});
+const drainOnOwnDeath = (name) => async (s, { lki, mult }) => {
+  if (lki.ctrl !== s.ctrl) return;
+  const o = opp(s.ctrl);
+  for (let i = 0; i < mult; i++) { loseLife(o, 1); gainLife(s.ctrl, 1); }
+  log(`${name}: ${P(o).name} loses ${mult}, ${P(s.ctrl).name} gains ${mult}.`);
+};
+C('Zulaport Cutthroat', { mc: '{1}{B}', colors: 'B', types: ['Creature'], sub: 'Human Rogue Ally', pt: [1, 1], role: 'creature', text: 'Whenever Zulaport Cutthroat or another creature you control dies, each opponent loses 1 life and you gain 1 life.', on: { dies: drainOnOwnDeath('Zulaport Cutthroat') } });
+C('Cruel Celebrant', { mc: '{W}{B}', colors: 'WB', types: ['Creature'], sub: 'Vampire', pt: [1, 2], role: 'creature', text: 'Whenever Cruel Celebrant or another creature or planeswalker you control dies, each opponent loses 1 life and you gain 1 life.', on: { dies: drainOnOwnDeath('Cruel Celebrant') } });

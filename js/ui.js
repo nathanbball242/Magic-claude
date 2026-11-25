@@ -193,7 +193,9 @@ const UI = {
     const PH = [['upkeep', 'Upkeep'], ['draw', 'Draw'], ['main1', 'Main 1'], ['combat', 'Combat'], ['main2', 'Main 2'], ['end', 'End']];
     const curPh = ['attackers', 'blockers', 'damage'].includes(G.phase) ? 'combat' : G.phase === 'cleanup' ? 'end' : G.phase;
     UI.el('phases').innerHTML = `<span class="turnlbl">T${G.turn} · ${G.active === HUMAN ? 'Your turn' : esc(bot.name)}</span>` + PH.map(([k, l]) => `<span class="ph ${k === curPh ? 'on' : ''}">${l}</span>`).join('');
-    UI.el('stack').innerHTML = G.stack.slice().reverse().map((it, i) => `<div class="stk ${it.p === BOT ? 'bot' : ''} ${i === 0 ? 'top' : ''}">${esc(P(it.p).name)}: ${esc(stackLabel(it))}</div>`).join('');
+    UI.el('stack').innerHTML = G.stack.slice().reverse().map((it, i) => { const src = it.kind === 'spell' ? it.card : it.src; return `<button class="stk ${it.p === BOT ? 'bot' : ''} ${i === 0 ? 'top' : ''}" data-id="${src.id}">${esc(P(it.p).name)}: ${esc(stackLabel(it))}<span class="stk-view">View card</span></button>`; }).join('');
+    const recent = (G.botRecent || []).map(findAny).filter(Boolean);
+    UI.el('botRecent').innerHTML = recent.length ? `<span class="rc-lbl">Bot cast:</span>${recent.map(c => `<button class="chip rc" data-id="${c.id}">${esc(c.name.split(',')[0])}</button>`).join('')}` : '';
     UI.el('ticker').innerHTML = G.log.slice(-4).map(l => `<div class="${esc(l.cls)}">${esc(l.msg)}</div>`).join('');
     UI.drawPrompt();
   },
@@ -202,6 +204,8 @@ const UI = {
     let text = '', btns = [];
     const m = UI.mode, d = UI.data;
     if (m === 'action') {
+      const top = G.stack[G.stack.length - 1];
+      if (d.mode === 'instant' && top && top.p === BOT) { const src = top.kind === 'spell' ? top.card : top.src; btns.push({ label: `View ${src.name.split(',')[0]}`, fn: () => UI.showCard(src) }); }
       text = `<b>${esc(d.reason)}</b><br>${d.mode === 'main' ? 'Tap a card in your hand or on the battlefield to play it.' : 'Tap a highlighted card to respond, or continue.'}`;
       btns.push({ label: d.passLabel, cls: 'primary', fn: () => UI.resolve({ type: 'pass' }) });
     } else if (m === 'pick') {
@@ -382,6 +386,12 @@ const UI = {
     }
     if (c.zone === 'exile' && c.foretold != null) lines.push(`Foretold on turn ${c.foretold}`);
     if (c.isCmd) lines.push(`Commander · tax ${2 * (P(c.owner).cmdCasts || 0)}`);
+    const sit = G.stack.find(it => (it.kind === 'spell' ? it.card : it.src) === c);
+    if (sit) {
+      const tg = sit.ctx.targets.map(t => t.isPlayer ? (t.pi === HUMAN ? 'you' : t.name) : `${t.name}${t.ctrl === HUMAN ? ' (yours)' : ''}`);
+      lines.unshift(`On the stack: ${P(sit.p).name} ${sit.kind === 'spell' ? 'cast it' : 'activated or triggered it'}${sit.ctx.modeLabel ? ` (${sit.ctx.modeLabel})` : ''}${tg.length ? `, targeting ${tg.join(', ')}` : ''}${sit.ctx.counterTarget ? `, countering ${sit.ctx.counterTarget.card.name}` : ''}.`);
+      if (sit.kind === 'ability') lines.unshift(`Ability: ${sit.label.replace(c.name + ': ', '')}`);
+    } else if (c.zone && c.zone !== 'bf' && c.zone !== 'hand') lines.push(`Zone: ${{ gy: 'graveyard', exile: 'exile', cz: 'command zone', library: 'library' }[c.zone] || c.zone} (${P(c.owner).name})`);
     const big = `<div class="bigcard" style="--frame:${frameColor(c)}">${fallbackHTML(c).replace('class="ftxt"', 'class="ftxt"')}${imgHTML(c)}</div>`;
     return `<div class="detail">${big}<div class="oracle"><div>${manaHTML(c.d.mc || '')} ${esc(typeLine(c))}${c.d.pt ? ` · ${c.d.pt[0]}/${c.d.pt[1]}` : ''}</div><div style="margin-top:6px">${esc(c.d.text || '')}</div>${lines.length ? `<div class="meta">${lines.map(esc).map(x => `<span>${x}</span>`).join('')}</div>` : ''}</div></div>`;
   },

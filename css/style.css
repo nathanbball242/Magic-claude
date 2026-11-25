@@ -214,3 +214,9 @@ button.chip { cursor: pointer; }
 .ftxt .fc .mp { font-size: 8px; min-width: 11px; height: 11px; margin: 0; }
 #hand .ftxt .fc .mp { font-size: 9px; min-width: 13px; height: 13px; }
 .acts .btn .cost .mp { font-size: 12px; }
+.stk { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; text-align: left; color: var(--fg); cursor: pointer; border-top: 0; border-right: 0; border-bottom: 0; font: inherit; font-size: 12px; min-height: 34px; }
+.stk-view { flex: 0 0 auto; font-weight: 700; color: var(--gold); font-size: 11px; }
+#botRecent { display: flex; gap: 5px; align-items: center; overflow-x: auto; scrollbar-width: none; }
+#botRecent:empty { display: none; }
+.rc-lbl { font-size: 11px; color: var(--muted); flex: 0 0 auto; }
+.chip.rc { min-height: 26px; padding: 2px 8px; font-size: 11px; border-color: var(--bad); flex: 0 0 auto; }

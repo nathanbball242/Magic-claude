@@ -902,6 +902,7 @@ async function castSpell(pi, c, from, opt = {}) {
   G.stack.push(it);
   log(`${P(pi).name} casts ${stackLabel(it)}${+cost ? ` (paid ${cost})` : ''}.`, pi === BOT ? 'bot' : 'me');
   G.tf.spellsCast[pi]++;
+  if (pi === BOT && !c.token) { G.botRecent = [c.id, ...(G.botRecent || []).filter(x => x !== c.id)].slice(0, 6); }
   await announceTargets(ctx);
   await emit('cast', { pi, card: c, ctx, it });
   if (typeof UI !== 'undefined') UI.render();

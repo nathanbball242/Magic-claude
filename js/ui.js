@@ -98,6 +98,7 @@ const UI = {
       if (k.bounty) b.push(`<span class="bd bounty">☠${k.bounty}</span>`);
       if (k.p1p1) b.push(`<span class="bd p1">+${k.p1p1}</span>`);
       if (k.m1m1) b.push(`<span class="bd m1">−${k.m1m1}</span>`);
+      if (c.tmp.p || c.tmp.t) { const tp = c.tmp.p || 0, tt = c.tmp.t || 0; b.push(`<span class="bd ${tp < 0 || tt < 0 ? 'm1' : 'p1'}" title="Until end of turn">${tp >= 0 ? '+' : ''}${tp}/${tt >= 0 ? '+' : ''}${tt} EOT</span>`); }
       for (const x of ['lore', 'page', 'age', 'cell']) if (k[x]) b.push(`<span class="bd">${x} ${k[x]}</span>`);
       const att = attachments(c);
       if (att.length) b.push(`<span class="bd eq">+${att.length}</span>`);
@@ -372,7 +373,7 @@ const UI = {
   detailHTML(c, compact) {
     const lines = [];
     if (c.zone === 'bf') {
-      if (isCreature(c)) { const s = st(c); lines.push(`Now ${s.p}/${s.t}${c.dmg ? `, ${c.dmg} damage marked` : ''}`); const kws = [...s.kw].filter(k => !['onlyWalls'].includes(k)); if (kws.length) lines.push('Has: ' + kws.join(', ')); if (s.prot.size) lines.push('Protection from: ' + [...s.prot].join('')); if (s.ward) lines.push(`Ward ${s.ward}`); }
+      if (isCreature(c)) { const s = st(c); lines.push(`Now ${s.p}/${s.t}${c.dmg ? `, ${c.dmg} damage marked` : ''}`); if (c.tmp.p || c.tmp.t) lines.push(`Until end of turn: ${(c.tmp.p || 0) >= 0 ? '+' : ''}${c.tmp.p || 0}/${(c.tmp.t || 0) >= 0 ? '+' : ''}${c.tmp.t || 0}`); const kws = [...s.kw].filter(k => !['onlyWalls'].includes(k)); if (kws.length) lines.push('Has: ' + kws.join(', ')); if (s.prot.size) lines.push('Protection from: ' + [...s.prot].join('')); if (s.ward) lines.push(`Ward ${s.ward}`); }
       const k = Object.entries(c.counters).filter(([, v]) => v > 0).map(([n, v]) => `${v} ${n === 'p1p1' ? '+1/+1' : n === 'm1m1' ? '-1/-1' : n}`);
       if (k.length) lines.push('Counters: ' + k.join(', '));
       const att = attachments(c); if (att.length) lines.push('Attached: ' + att.map(a => a.name).join(', '));

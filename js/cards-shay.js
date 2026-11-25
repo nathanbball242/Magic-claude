@@ -313,7 +313,7 @@ C('Bleed Dry', {
   mc: '{2}{B}{B}', colors: 'B', types: ['Instant'], role: 'removal', threat: 'exile',
   text: 'Target creature gets -13/-13 until end of turn. If that creature would die this turn, exile it instead.',
   choose: (ctx) => pickTarget(ctx, 'Target creature gets -13/-13', anyCreature()),
-  spell: async (ctx) => { const t = ctx.targets[0]; if (!tOK(ctx, t)) return; tmpAdd(t, { p: -13, t: -13 }); t.tmp.exileIfDies = true; },
+  spell: async (ctx) => { const t = ctx.targets[0]; if (!tOK(ctx, t)) return; tmpAdd(t, { p: -13, t: -13 }); t.tmp.exileIfDies = true; log(`${t.name} gets -13/-13 until end of turn.`, 'warn'); },
 });
 C('Sorceress Queen', {
   mc: '{1}{B}{B}', colors: 'B', types: ['Creature'], sub: 'Human Wizard Sorcerer', pt: [1, 1], role: 'creature',
@@ -362,7 +362,8 @@ C('Tragic Banshee', {
   etb: async (c) => {
     await trigger(c, c.ctrl, 'Morbid shrink', (ctx) => pickTarget(ctx, 'Target creature an opponent controls', x => isCreature(x) && x.ctrl !== c.ctrl), async (ctx) => {
       const t = ctx.targets[0]; if (!tOK(ctx, t)) return;
-      if (G.tf.died) tmpAdd(t, { p: -13, t: -13 }); else tmpAdd(t, { p: -1, t: -1 });
+      if (G.tf.died) { tmpAdd(t, { p: -13, t: -13 }); log(`Tragic Banshee (morbid): ${t.name} gets -13/-13 until end of turn.`, 'warn'); }
+      else { tmpAdd(t, { p: -1, t: -1 }); log(`Tragic Banshee: ${t.name} gets -1/-1 until end of turn. No creature died this turn, so morbid did not make it -13/-13.`, 'warn'); }
     });
   },
 });

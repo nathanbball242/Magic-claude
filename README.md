@@ -6,7 +6,7 @@ Open `index.html` in a browser (no build step, no server needed). Card art loads
 
 ## Two versions
 - `index.html`: the owner's version, with the Shay Cormac and Elenda builds.
-- `friend.html`: the shareable copy. Same bots and engine, no personal decks. Anyone builds or pastes their own deck.
+- `friend.html`: the shareable copy. No personal decks and no Dusk Rose deck. Players can pilot any of the four upgraded precons (Cloud, Sai, Terra, T'Challa) or build and paste their own deck; the same four precons are available as bots.
 
 Both read card data for custom decks from `data/cards-db.json` (33k Commander-legal cards with Oracle text from MTGJSON). Opened straight from disk, the browser may block that file; the page then asks Scryfall for each card instead.
 

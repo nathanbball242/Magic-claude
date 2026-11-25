@@ -26,12 +26,16 @@ function customKeyFor(deck) { return registerCustomDeck(deck); }
 
 function boot() {
   const friend = !!window.FRIEND_BUILD;
-  if (friend) { delete DECKS.shay; delete DECKS.elenda; }
+  if (friend) {
+    delete DECKS.shay; delete DECKS.elenda; delete DECKS.elendaBot;
+    for (let i = BOT_DECKS.length - 1; i >= 0; i--) if (!DECKS[BOT_DECKS[i][0]]) BOT_DECKS.splice(i, 1);
+  }
   loadSettings();
   UI.init();
   document.documentElement.dataset.size = SETTINGS.cardSize || 'normal';
   if (!Array.isArray(SETTINGS.botDecks) || !SETTINGS.botDecks.length) SETTINGS.botDecks = ['cloud'];
-  SETTINGS.botDecks = SETTINGS.botDecks.slice(0, 4);
+  SETTINGS.botDecks = SETTINGS.botDecks.filter(k => DECKS[k] || String(k).startsWith('custom:')).slice(0, 4);
+  if (!SETTINGS.botDecks.length) SETTINGS.botDecks = ['cloud'];
 
   const deckOptions = () => {
     const { mine, others } = DeckStore.all();
@@ -63,6 +67,7 @@ function boot() {
     const { mine, others } = DeckStore.all();
     const cards = [];
     if (!friend) for (const [k, name, pips, desc] of OWN_DECKS) cards.push({ key: k, name, pips, desc });
+    else for (const [k, pips, desc] of BOT_DECKS) cards.push({ key: k, name: DECKS[k].name, pips, desc: 'Play the upgraded precon yourself. ' + desc });
     for (const d of mine) cards.push({ key: 'custom:' + d.id, name: d.name, pips: '', desc: `${d.commander} + ${d.cards.reduce((a, x) => a + x[1], 0)} cards. Your deck.`, deck: d, editable: true });
     for (const d of others) cards.push({ key: 'custom:' + d.id, name: d.name, pips: '', desc: `${d.commander}. Shared on this page by another player.`, deck: d });
     if (!cards.some(c => c.key === SETTINGS.myDeck)) SETTINGS.myDeck = cards.length ? cards[0].key : '';
@@ -92,7 +97,7 @@ function boot() {
   const bind = (id, key, conv = (v) => v) => { const el = document.getElementById(id); if (!el) return; if (el.type === 'checkbox') { el.checked = !!SETTINGS[key]; el.onchange = () => { SETTINGS[key] = el.checked; saveSettings(); }; } else { el.value = String(SETTINGS[key]); el.onchange = () => { SETTINGS[key] = conv(el.value); saveSettings(); if (key === 'cardSize') document.documentElement.dataset.size = el.value; }; } };
   bind('setHouse', 'shayHouseRule'); bind('setStop', 'stopEverySpell'); bind('setTithe', 'askTithe'); bind('setSpeed', 'botDelay', Number); bind('setMana', 'manualMana'); bind('setSize', 'cardSize');
   if (friend) { const h = document.getElementById('setHouse'); if (h) h.closest('label').hidden = true; }
-  document.getElementById('deckLists').innerHTML = [...(friend ? [] : ['shay', 'elenda']), 'cloud', 'sai', 'revival', 'wakanda', 'elendaBot'].map(deckListHTML).join('');
+  document.getElementById('deckLists').innerHTML = [...(friend ? [] : ['shay', 'elenda']), 'cloud', 'sai', 'revival', 'wakanda', 'elendaBot'].filter(k => DECKS[k]).map(deckListHTML).join('');
 
   document.getElementById('startBtn').onclick = async () => {
     if (!SETTINGS.myDeck) { UI.toast('Pick or build a deck first.'); return; }

@@ -391,6 +391,7 @@ async function killBatch(victims, how = 'destroy') {
   for (const r of recs) {
     if (r.died && r.wasCreature) {
       G.tf.died = true;
+      G.tf.deaths.push(r.lki.name);
       await fireDies(r, snapshot);
     }
     if (r.died && r.lki.d.ltbToGY) await r.lki.d.ltbToGY(r.c, r.lki);
@@ -1080,7 +1081,7 @@ function mkPlayer(idx, name, isBot) {
 function freshTurnFlags() {
   return {
     lifeGained: [0, 0], drawn: [0, 0], spellsCast: [0, 0], attacked: [false, false],
-    died: false, moonglove: new Set(), cantAttack: [false, false], aiTried: new Set(),
+    died: false, deaths: [], moonglove: new Set(), cantAttack: [false, false], aiTried: new Set(),
     hitBy: {},
   };
 }

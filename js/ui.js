@@ -394,8 +394,13 @@ const UI = {
   },
   onAct(a) {
     if (a === 'log') {
-      UI.openSheet(`<div class="row-btns" style="justify-content:space-between"><h3>Game log</h3><button class="btn" id="lgClose">Close</button></div><div class="logbox">${G.log.slice().reverse().map(l => `<div class="logline ${esc(l.cls)}">${esc(l.msg)}</div>`).join('')}</div>`, true);
+      UI.openSheet(`<div class="row-btns" style="justify-content:space-between"><h3>Game log</h3><span><button class="btn" id="lgCopy">Copy log</button> <button class="btn" id="lgClose">Close</button></span></div><textarea id="lgText" readonly hidden style="width:100%;height:140px;background:var(--panel-2);color:var(--fg);border:1px solid var(--line);border-radius:8px;font-size:11px"></textarea><div class="logbox">${G.log.slice().reverse().map(l => `<div class="logline ${esc(l.cls)}">${esc(l.msg)}</div>`).join('')}</div>`, true);
       UI.el('lgClose').onclick = () => UI.closeSheet();
+      UI.el('lgCopy').onclick = () => {
+        const txt = `Opponent deck: ${G.botKey}, my deck: ${P(HUMAN).deckKey}\n` + G.log.slice(-300).map(l => l.msg).join('\n');
+        const fallback = () => { const ta = UI.el('lgText'); ta.hidden = false; ta.value = txt; ta.focus(); ta.select(); UI.toast('Copy the selected text, then paste it to Claude.'); };
+        try { navigator.clipboard.writeText(txt).then(() => UI.toast('Log copied. Paste it to Claude.'), fallback); } catch (e) { fallback(); }
+      };
     }
     if (a === 'menu') {
       UI.openSheet(`<div class="row-btns" style="justify-content:space-between"><h3>Menu</h3><button class="btn" id="mnClose">Close</button></div>

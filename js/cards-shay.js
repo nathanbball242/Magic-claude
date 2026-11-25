@@ -362,8 +362,8 @@ C('Tragic Banshee', {
   etb: async (c) => {
     await trigger(c, c.ctrl, 'Morbid shrink', (ctx) => pickTarget(ctx, 'Target creature an opponent controls', x => isCreature(x) && x.ctrl !== c.ctrl), async (ctx) => {
       const t = ctx.targets[0]; if (!tOK(ctx, t)) return;
-      if (G.tf.died) { tmpAdd(t, { p: -13, t: -13 }); log(`Tragic Banshee (morbid): ${t.name} gets -13/-13 until end of turn.`, 'warn'); }
-      else { tmpAdd(t, { p: -1, t: -1 }); log(`Tragic Banshee: ${t.name} gets -1/-1 until end of turn. No creature died this turn, so morbid did not make it -13/-13.`, 'warn'); }
+      if (G.tf.died) { tmpAdd(t, { p: -13, t: -13 }); log(`Tragic Banshee (morbid): ${t.name} gets -13/-13 until end of turn (${G.tf.deaths[0]} died earlier this turn).`, 'warn'); }
+      else { tmpAdd(t, { p: -1, t: -1 }); log(`Tragic Banshee: ${t.name} gets -1/-1 until end of turn. No creature has died yet this turn (turn ${G.turn}), so morbid did not make it -13/-13. Deaths on earlier turns and creatures exiled instead of dying don't count.`, 'warn'); }
     });
   },
 });

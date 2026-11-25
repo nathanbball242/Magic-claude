@@ -84,6 +84,8 @@ const UI = {
     const cls = ['card'];
     if (UI.mode === 'action' && UI.playableIds && UI.playableIds.has(c.id)) cls.push('playable');
     if (UI.mode === 'pick' && UI.data.ids.has(c.id)) cls.push('cand');
+    if (UI.spotTargets && UI.spotTargets.has(c.id)) cls.push('targeted');
+    if (c.d.generic && c.d.manual && c.d.manual.length) cls.push('partial');
     if (UI.mode === 'attack' && UI.data.sel.has(c.id)) cls.push('sel');
     if (UI.mode === 'attack' && !UI.data.sel.has(c.id) && UI.data.elig.has(c.id)) cls.push('cand');
     if (UI.mode === 'block' && UI.data.selected === c.id) cls.push('blocker-sel');
@@ -202,6 +204,7 @@ const UI = {
     UI.el('botRecent').innerHTML = recent.length ? `<span class="rc-lbl">Bot cast:</span>${recent.map(c => `<button class="chip rc" data-id="${c.id}">${esc(c.name.split(',')[0])}</button>`).join('')}` : '';
     UI.el('ticker').innerHTML = G.log.slice(-4).map(l => `<div class="${esc(l.cls)}">${esc(l.msg)}</div>`).join('');
     UI.drawPrompt();
+    if (UI.drawSpot) UI.drawSpot();
   },
   drawPrompt() {
     const t = UI.el('promptText'), b = UI.el('promptBtns');
@@ -399,8 +402,10 @@ const UI = {
     const acts = UI.actionsFor(c);
     UI.openSheet(`<div class="row-btns" style="justify-content:space-between"><h3>${esc(c.faceHidden ? 'Face-down card' : c.name)}</h3><button class="btn" id="scClose">Close</button></div>
       ${UI.detailHTML(c)}
-      ${acts.length ? `<div class="acts">${acts.map((a, i) => `<button class="btn ${a.ok !== false ? 'primary' : ''}" data-ai="${i}" ${a.ok === false ? 'disabled' : ''}><span>${esc(a.label)}</span>${a.type !== 'land' ? `<span class="cost">${a.cost != null ? (+a.cost === 0 ? 'free' : manaHTML(String(toCost(a.cost)))) : ''}</span>` : ''}</button>`).join('')}</div>` : ''}`, true);
+      ${acts.length ? `<div class="acts">${acts.map((a, i) => `<button class="btn ${a.ok !== false ? 'primary' : ''}" data-ai="${i}" ${a.ok === false ? 'disabled' : ''}><span>${esc(a.label)}</span>${a.type !== 'land' ? `<span class="cost">${a.cost != null ? (+a.cost === 0 ? 'free' : manaHTML(String(toCost(a.cost)))) : ''}</span>` : ''}</button>`).join('')}</div>` : ''}
+      ${UI.manualHTML ? UI.manualHTML(c) : ''}`, true);
     UI.el('scClose').onclick = () => UI.closeSheet();
+    if (UI.bindManual) UI.bindManual(c);
     UI.el('sheet').querySelectorAll('[data-ai]').forEach(e => e.onclick = () => { const a = acts[+e.dataset.ai]; UI.closeSheet(); UI.resolve(a); });
   },
   detailHTML(c, compact) {
@@ -415,6 +420,8 @@ const UI = {
     }
     if (c.zone === 'exile' && c.foretold != null) lines.push(`Foretold on turn ${c.foretold}`);
     if (c.isCmd) lines.push(`Commander · tax ${2 * (P(c.owner).cmdCasts || 0)}`);
+    if (c.d.generic && c.d.manual && c.d.manual.length) lines.push('Not automated (use Manual actions below): ' + c.d.manual.join(' | '));
+    else if (c.d.generic) lines.push('Automated from Oracle text.');
     const sit = G.stack.find(it => (it.kind === 'spell' ? it.card : it.src) === c);
     if (sit) {
       const tg = sit.ctx.targets.map(t => t.isPlayer ? (t.pi === HUMAN ? 'you' : t.name) : `${t.name}${t.ctrl === HUMAN ? ' (yours)' : ''}`);
@@ -445,14 +452,21 @@ const UI = {
       UI.openSheet(`<div class="row-btns" style="justify-content:space-between"><h3>Menu</h3><button class="btn" id="mnClose">Close</button></div>
         <div class="settings">
           <label><input type="checkbox" id="mnStop" ${SETTINGS.stopEverySpell ? 'checked' : ''}> Let me respond to every bot spell (not only removal, wipes and attacks)</label>
-          <label><input type="checkbox" id="mnHouse" ${SETTINGS.shayHouseRule ? 'checked' : ''}> House rule: Shay's {1} ability also puts a bounty counter on every bot creature</label>
+          ${window.FRIEND_BUILD ? '' : `<label><input type="checkbox" id="mnHouse" ${SETTINGS.shayHouseRule ? 'checked' : ''}> House rule: Shay's {1} ability also puts a bounty counter on every bot creature</label>`}
           <label><input type="checkbox" id="mnTithe" ${SETTINGS.askTithe ? 'checked' : ''}> Ask me before paying for Rhystic Study, Mystic Remora and Smothering Tithe</label>
+          <label><input type="checkbox" id="mnMana" ${SETTINGS.manualMana ? 'checked' : ''}> Choose which lands and rocks pay when I cast</label>
+          <label>Card size <select id="mnSize"><option value="normal">Normal</option><option value="large">Large</option></select></label>
           <label>Bot speed <select id="mnSpeed"><option value="900">Slow</option><option value="450">Normal</option><option value="120">Fast</option></select></label>
         </div>
+        <button class="btn" id="mnTools">Manual tools: life, draw, tokens</button>
         <button class="btn danger" id="mnConcede">Concede and start a new game</button>`, true);
       UI.el('mnSpeed').value = String(SETTINGS.botDelay);
+      UI.el('mnSize').value = SETTINGS.cardSize || 'normal';
+      UI.el('mnMana').onchange = (e) => { SETTINGS.manualMana = e.target.checked; saveSettings(); };
+      UI.el('mnSize').onchange = (e) => { SETTINGS.cardSize = e.target.value; document.documentElement.dataset.size = e.target.value; saveSettings(); UI.render(); };
+      UI.el('mnTools').onclick = () => UI.playerTools();
       UI.el('mnStop').onchange = (e) => { SETTINGS.stopEverySpell = e.target.checked; saveSettings(); };
-      UI.el('mnHouse').onchange = (e) => { SETTINGS.shayHouseRule = e.target.checked; saveSettings(); };
+      if (UI.el('mnHouse')) UI.el('mnHouse').onchange = (e) => { SETTINGS.shayHouseRule = e.target.checked; saveSettings(); };
       UI.el('mnTithe').onchange = (e) => { SETTINGS.askTithe = e.target.checked; saveSettings(); };
       UI.el('mnSpeed').onchange = (e) => { SETTINGS.botDelay = +e.target.value; saveSettings(); };
       UI.el('mnClose').onclick = () => UI.closeSheet();

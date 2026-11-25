@@ -4,10 +4,23 @@ Mobile-first, single-page Commander game: your deck against 1 to 4 bots. You pic
 
 Open `index.html` in a browser (no build step, no server needed). Card art loads from Scryfall when the network allows it; otherwise cards render as text tiles with full Oracle text.
 
+## Two versions
+- `index.html`: the owner's version, with the Shay Cormac and Elenda builds.
+- `friend.html`: the shareable copy. Same bots and engine, no personal decks. Anyone builds or pastes their own deck.
+
+Both read card data for custom decks from `data/cards-db.json` (33k Commander-legal cards with Oracle text from MTGJSON). Opened straight from disk, the browser may block that file; the page then asks Scryfall for each card instead.
+
+## Build your own deck
+Tap "Build or paste a deck", paste a list (Moxfield, Archidekt, MTGA or "1 Card Name" lines), set the commander, check and save. On claude.ai, decks are stored with the page (shared database) so they follow you across devices and other players on that page can use them too; elsewhere they stay in the browser. Saved decks can also be given to the bots.
+
+Cards are automated three ways: hand-written scripts (every card in the built-in decks), an Oracle-text interpreter for common templates (keywords, mana abilities, ETB/attack/dies/upkeep/end step/landfall triggers, activated abilities, removal, burn, draw, tokens, ramp, tutors, reanimation, counterspells, pump, auras, equipment, anthems, modal spells, sagas, shield/stun counters, O-Ring effects), and manual actions for anything else. Cards with text the game cannot run get a dashed border; their card view lists the text and has Manual actions (tap, counters, move between zones). Menu → Manual tools adjusts life, draws, mills and makes tokens.
+
 ## How to play
 - Your hand is along the bottom, battlefields stacked above it, bot on top.
 - Tap any card to see it full size with its Oracle text and every action you can take with it right now (cast, play land, activate, equip, foretell).
 - Targeting: tap the glowing card. Attacking: tap creatures to toggle, then Attack. Blocking: tap your creature, then the attacker.
+- When you cast, a mana picker preselects the best lands and rocks; tap sources to change it, or turn on auto-pay in the menu.
+- Every bot spell and ability opens a panel above the prompt with the card, its text and its targets; targeted cards get a red TARGET mark and the board switches to show them.
 - Mana is colored. Costs show real symbols, and your mana chip shows how many of each color you can make. Payment is automatic and picks the tapping that keeps your flexible sources (Scoured Barrens, Talisman, Treasures) open when a basic will do. Hybrid {W/B}, {C}, Orzhov Basilica's {W}{B}, Arcane Signet's commander colors, Forsaken Monument, Urza, improvise and convoke are all handled.
 - You get a response window when the bot casts removal or a wipe, targets your stuff, at its beginning of combat, when it attacks, after blocks and at its end step. Turn on "respond to every bot spell" in the menu for more.
 - Bounty counters show as a gold skull badge. Shay's `{1}` strip ability lives on Shay's card.
@@ -45,7 +58,9 @@ Official lists and Oracle text come from MTGJSON (Wizards' decklist pages) and S
 - `js/ui.js`, `js/main.js`, `css/style.css` interface
 - `tools/sim.js` headless bot-vs-bot batch test: `node tools/sim.js 50 both`
 - `tools/ui-smoke.js`, `tools/ui-flow.js` Playwright browser tests
-- `tools/build-artifact.js` one-file build
+- `tools/build-artifact.js` one-file build (`--friend` for the shareable copy)
+- `tools/rules-test.js` rules regression suite (34 scenarios)
+- `js/cards-generic.js` Oracle-text interpreter and decklist parser; `js/ui-extra.js` mana picker, bot spotlight, manual actions, deck builder and deck storage
 - The bot plays the land and fetches the basic its hand needs most by color.
 
 ## Simplifications

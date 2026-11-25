@@ -10,7 +10,7 @@ const HUMAN = 0, BOT = 1;
 let G = null;
 let UID = 1;
 const CARDS = {};
-const SETTINGS = { botDelay: 450, stopEverySpell: false, askTithe: true, shayHouseRule: false, myDeck: 'shay' };
+const SETTINGS = { botDelay: 450, stopEverySpell: false, askTithe: true, shayHouseRule: false, myDeck: 'shay', manualMana: true, cardSize: 'normal' };
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -291,6 +291,7 @@ function dealDamage(src, tgt, n, { combat = false } = {}) {
     if (combat && G.monarch === tgt.pi && src.ctrl !== tgt.pi) setMonarch(src.ctrl);
   } else {
     if (tgt.zone !== 'bf') return 0;
+    if (tgt.counters.shield) { tgt.counters.shield--; log(`${tgt.name}'s shield counter prevents the damage.`); return 0; }
     const s = st(tgt);
     for (const col of sc) if (s.prot.has(col)) return 0;
     if (s.prot.has('all')) return 0;
@@ -435,12 +436,14 @@ async function fireDies(r, snapshot) {
 }
 async function destroy(c) {
   if (!c || c.zone !== 'bf') return false;
+  if (c.counters.shield) { c.counters.shield--; log(`${c.name}'s shield counter is removed instead.`); return false; }
   if (has(c, 'indestructible')) { log(`${c.name} is indestructible.`); return false; }
   await killBatch([c], 'destroy');
   return true;
 }
 async function destroyMany(list) {
-  const v = list.filter(c => c.zone === 'bf' && !has(c, 'indestructible'));
+  for (const c of list) if (c.zone === 'bf' && !has(c, 'indestructible') && c.counters.shield) { c.counters.shield--; c.tmp.shielded = true; log(`${c.name}'s shield counter is removed instead.`); }
+  const v = list.filter(c => c.zone === 'bf' && !has(c, 'indestructible') && !c.tmp.shielded);
   const saved = list.filter(c => c.zone === 'bf' && has(c, 'indestructible'));
   if (saved.length) log(`Indestructible: ${saved.map(c => c.name).join(', ')} survive.`);
   return await killBatch(v, 'destroy');
@@ -604,9 +607,11 @@ function unitPays(opts, pip) {
   return opts.includes(pip);
 }
 function planPayment(pi, cost, opts = {}) {
+  return planFrom(manaSources(pi, opts), cost);
+}
+function planFrom(srcs, cost) {
   cost = toCost(cost);
   if (cost.generic <= 0 && !cost.pips.length) return { srcs: [] };
-  const srcs = manaSources(pi, opts);
   const units = [];
   srcs.forEach((s, si) => s.units.forEach(u => units.push({ si, opts: u, kind: s.kind })));
   if (units.length < cost.generic + cost.pips.length) return null;
@@ -647,6 +652,22 @@ function canPay(pi, cost, opts = {}) {
   cost = toCost(cost);
   if (cost.generic <= 0 && !cost.pips.length) return true;
   return !!planPayment(pi, cost, opts);
+}
+/* the human picks which lands, rocks and Treasures to use (unless auto-pay is on) */
+async function payChosen(pi, cost, opts = {}, label) {
+  cost = toCost(cost);
+  if (P(pi).isBot || !SETTINGS.manualMana || G.humanAuto || (cost.generic <= 0 && !cost.pips.length) || typeof UI === 'undefined' || !UI.payMana) return pay(pi, cost, opts);
+  const srcs = manaSources(pi, opts);
+  const plan = planFrom(srcs, cost);
+  if (!plan) return false;
+  const picked = await UI.payMana(cost, srcs, plan.srcs.map(s => s.c.id), label);
+  if (!picked) return false;
+  const chosen = srcs.filter(s => picked.includes(s.c.id));
+  const p2 = planFrom(chosen, cost);
+  if (!p2) return false;
+  for (const s of chosen) { if (s.kind === 'treasure') moveTo(s.c, 'gy'); else s.c.tapped = true; }
+  log(`You tap ${chosen.map(s => s.c.name).join(', ')}.`);
+  return true;
 }
 async function pay(pi, cost, opts = {}) {
   const plan = planPayment(pi, cost, opts);
@@ -751,6 +772,7 @@ async function pushAbility(src, pi, label, ctx, resolve) {
   G.stack.push(it);
   await announceTargets(ctx);
   log(`${P(pi).name}: ${stackLabel(it)}`, pi !== HUMAN ? 'bot' : 'me');
+  if (pi !== HUMAN && typeof UI !== 'undefined' && UI.spotlight) await UI.spotlight(it);
   return it;
 }
 /* a triggered ability with optional targets. choose returns false to skip. */
@@ -946,7 +968,7 @@ async function castSpell(pi, c, from, opt = {}) {
   const cost = costOf(pi, c, ctx);
   const po = payOpts(c, ctx);
   if (!canPay(pi, cost, po)) { if (!P(pi).isBot) UI.toast(`Not enough mana for ${c.name} (needs ${cost}).`); return false; }
-  await pay(pi, cost, po);
+  if (!(await payChosen(pi, cost, po, `Pay for ${c.name}`))) { if (!P(pi).isBot) UI.toast('Casting cancelled.'); return false; }
   ctx.manaSpent = cost;
   if (from === 'cz') P(pi).cmdCasts = (P(pi).cmdCasts || 0) + 1;
   removeFromZone(c);
@@ -958,6 +980,7 @@ async function castSpell(pi, c, from, opt = {}) {
   if (pi !== HUMAN && !c.token) { G.botRecent = [c.id, ...(G.botRecent || []).filter(x => x !== c.id)].slice(0, 6); }
   await announceTargets(ctx);
   await emit('cast', { pi, card: c, ctx, it });
+  if (pi !== HUMAN && typeof UI !== 'undefined' && UI.spotlight) await UI.spotlight(it);
   if (typeof UI !== 'undefined') UI.render();
   return true;
 }
@@ -1027,8 +1050,8 @@ async function activate(pi, c, ab) {
   const exclude = ab.tap ? c : null;
   if (!canPay(pi, cost, { exclude })) { if (!P(pi).isBot) UI.toast('Not enough mana.'); return false; }
   if (ab.tap) c.tapped = true;
+  if (!(await payChosen(pi, cost, { exclude }, `Pay for ${c.name}`))) { if (ab.tap) c.tapped = false; return false; }
   if (ab.tapAttached) { const t = attachedTo(c); if (t) t.tapped = true; }
-  await pay(pi, cost, { exclude });
   if (ab.oncePerTurn) c.tmp['used_' + ab.id] = true;
   if (ab.preCost) await ab.preCost(ctx);
   if (ab.sacSelf) { ctx.lki = snap(c); await sacrifice(c); }
@@ -1256,6 +1279,8 @@ async function takeTurn(ap) {
     c.sick = false;
     if (c.d.noUntap && c.d.noUntap(c)) continue;
     if (attachments(c).some(a => a.name === 'Fall from Favor') && G.monarch !== c.ctrl) continue;
+    if (attachments(c).some(a => a.d.noUntapAttached)) continue;
+    if (c.counters.stun) { c.counters.stun--; log(`${c.name} stays tapped (stun counter removed).`); continue; }
     c.tapped = false;
   }
   await phase('upkeep');
@@ -1339,6 +1364,7 @@ function canAttack(c) {
   if (c.tmp.cantAttack || attachments(c).some(a => a.name === 'Compulsory Rest')) return false;
   if (has(c, 'defender')) return false;
   if (c.d.attackIf && !c.d.attackIf(c)) return false;
+  if (has(c, 'cantAttack')) return false;
   return true;
 }
 function canBlock(b, a) {
@@ -1356,6 +1382,7 @@ function canBlock(b, a) {
   if (sa.kw.has('nonbasicLandwalk') && perms(b.ctrl).some(l => isLand(l) && !isBasic(l))) return false;
   if (sa.kw.has('swampwalk') && hasLandType(b.ctrl, 'Swamp')) return false;
   if (b.d.blockIf && !b.d.blockIf(b)) return false;
+  if (has(b, 'cantBlock')) return false;
   for (const col of colorsOf(b)) if (sa.prot.has(col)) return false;
   if (sa.prot.has('all')) return false;
   return true;

@@ -16,12 +16,11 @@
     <div class="start-inner">
       <div class="eyebrow">Commander · 40 life · 21 commander damage · up to 4 bots</div>
       <h1>Bounty hunt <span>vs the bots</span></h1>
-      <p class="lede">Tag their creatures with bounty counters, then wipe. You pilot your Shay build, or the Elenda version with Shay in the 99. The bot plays an upgraded precon and follows the rules from your simulations.</p>
-      <div class="eyebrow">Your commander</div>
-      <div class="opp-pick" id="myPick">
-        <button class="opp-card my-card" data-mine="shay" aria-pressed="true"><b>Shay Cormac</b><span class="pips">W B</span><small>Your purchased build. Tag with bounty counters, protect Shay, then wipe.</small></button>
-        <button class="opp-card my-card" data-mine="elenda" aria-pressed="false"><b>Elenda, the Dusk Rose</b><span class="pips">W B</span><small>Same 99 with Shay moved in. Cuts Gideon's Lawkeeper, Goldmeadow Harrier, Blinding Mage, Sorceress Queen. Adds Shay Cormac, Viscera Seer, Zulaport Cutthroat, Cruel Celebrant.</small></button>
-      </div>
+      <p class="lede" id="lede">Tag their creatures with bounty counters, then wipe. Pilot your Shay build, the Elenda version, or any deck you paste in. The bots play upgraded precons and follow the rules from your simulations.</p>
+      <div class="eyebrow">Your deck</div>
+      <div class="opp-pick" id="myPick"></div>
+      <button class="btn" id="buildDeck">Build or paste a deck</button>
+      <p class="sub" id="deckStoreNote"></p>
       <div class="eyebrow">Opponents: 1 to 4 bots</div>
       <div id="botList" class="bot-list"></div>
       <button class="btn" id="addBot">Add another bot</button>
@@ -29,6 +28,8 @@
         <label><input type="checkbox" id="setStop"> Let me respond to every bot spell (by default you get a window for removal, wipes, attacks and the bot's end step)</label>
         <label><input type="checkbox" id="setHouse"> House rule: Shay's {1} ability also puts a bounty counter on every bot creature (off = printed card: only targeting tags)</label>
         <label><input type="checkbox" id="setTithe"> Ask me before paying for Rhystic Study, Mystic Remora and Smothering Tithe</label>
+        <label><input type="checkbox" id="setMana"> Choose which lands and rocks pay when I cast (off = pay automatically)</label>
+        <label>Card size <select id="setSize"><option value="normal">Normal</option><option value="large">Large</option></select></label>
         <label>Bot speed <select id="setSpeed"><option value="900">Slow</option><option value="450">Normal</option><option value="120">Fast</option></select></label>
       </div>
       <button class="big-btn" id="startBtn">Shuffle up</button>
@@ -51,6 +52,7 @@
         <div class="row lands" id="myLands"></div>
       </section>
     </main>
+    <div id="spot" hidden></div>
     <div id="prompt"><div id="promptText"></div><div id="promptBtns"></div></div>
     <footer class="pbar me" id="myBar"></footer>
     <div id="hand"></div>
@@ -66,9 +68,11 @@
 <script src="js/cards-elenda.js"></script>
 <script src="js/cards-ff.js"></script>
 <script src="js/cards-wakanda.js"></script>
+<script src="js/cards-generic.js"></script>
 <script src="js/decks.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/ui-extra.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

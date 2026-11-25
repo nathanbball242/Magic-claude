@@ -26,7 +26,7 @@ const path = require('path');
   for (let i = 0; i < 700; i++) {
     await p.waitForTimeout(120);
     if (await p.evaluate(() => G.over)) break;
-    const sheetBtn = await p.$('#sheet:not([hidden]) #cfNo, #sheet:not([hidden]) #poCancel, #sheet:not([hidden]) #mpOk:not([disabled]), #sheet:not([hidden]) #mpCancel, #sheet:not([hidden]) [data-gid]');
+    const sheetBtn = await p.$('#sheet:not([hidden]) #pmPay:not([disabled]), #sheet:not([hidden]) #cfNo, #sheet:not([hidden]) #poCancel, #sheet:not([hidden]) #mpOk:not([disabled]), #sheet:not([hidden]) #mpCancel, #sheet:not([hidden]) [data-gid]');
     if (sheetBtn) { await sheetBtn.click().catch(() => {}); continue; }
     const mode = await p.evaluate(() => UI.mode);
     if (mode === 'action') {

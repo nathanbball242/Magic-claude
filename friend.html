@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Commander Bot Table</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<!--BODY-->
+<div id="app">
+  <div id="start">
+    <div class="start-inner">
+      <div class="eyebrow">Commander · 40 life · 21 commander damage · up to 4 bots</div>
+      <h1>Commander <span>vs the bots</span></h1>
+      <p class="lede" id="lede">Paste your Commander deck and play it against up to four bots running upgraded precons. Every Commander-legal card is recognised; common card text is automated and anything else gets manual controls.</p>
+      <div class="eyebrow">Your deck</div>
+      <div class="opp-pick" id="myPick"></div>
+      <button class="btn" id="buildDeck">Build or paste a deck</button>
+      <p class="sub" id="deckStoreNote"></p>
+      <div class="eyebrow">Opponents: 1 to 4 bots</div>
+      <div id="botList" class="bot-list"></div>
+      <button class="btn" id="addBot">Add another bot</button>
+      <div class="settings">
+        <label><input type="checkbox" id="setStop"> Let me respond to every bot spell (by default you get a window for removal, wipes, attacks and the bot's end step)</label>
+        <label><input type="checkbox" id="setHouse"> House rule: Shay's {1} ability also puts a bounty counter on every bot creature (off = printed card: only targeting tags)</label>
+        <label><input type="checkbox" id="setTithe"> Ask me before paying for Rhystic Study, Mystic Remora and Smothering Tithe</label>
+        <label><input type="checkbox" id="setMana"> Choose which lands and rocks pay when I cast (off = pay automatically)</label>
+        <label>Card size <select id="setSize"><option value="normal">Normal</option><option value="large">Large</option></select></label>
+        <label>Bot speed <select id="setSpeed"><option value="900">Slow</option><option value="450">Normal</option><option value="120">Fast</option></select></label>
+      </div>
+      <button class="big-btn" id="startBtn">Shuffle up</button>
+      <details class="decks"><summary>Deck lists</summary><div class="decklist" id="deckLists"></div></details>
+    </div>
+  </div>
+  <div id="game" hidden>
+    <nav id="oppTabs" hidden></nav>
+    <header class="pbar" id="oppBar"></header>
+    <main id="board">
+      <section class="bf opp">
+        <div class="row lands" id="oppLands"></div>
+        <div class="row others" id="oppOthers"></div>
+        <div class="row creatures" id="oppCreatures"></div>
+      </section>
+      <section id="strip"><div id="phases"></div><div id="stack"></div><div id="botRecent"></div><div id="ticker"></div></section>
+      <section class="bf me">
+        <div class="row creatures" id="myCreatures"></div>
+        <div class="row others" id="myOthers"></div>
+        <div class="row lands" id="myLands"></div>
+      </section>
+    </main>
+    <div id="spot" hidden></div>
+    <div id="prompt"><div id="promptText"></div><div id="promptBtns"></div></div>
+    <footer class="pbar me" id="myBar"></footer>
+    <div id="hand"></div>
+  </div>
+  <div id="sheet" hidden></div>
+  <div id="toast" hidden></div>
+</div>
+<!--/BODY-->
+<script>window.FRIEND_BUILD = true;</script>
+<script src="js/engine.js"></script>
+<script src="js/cards-shay.js"></script>
+<script src="js/cards-cloud.js"></script>
+<script src="js/cards-sai.js"></script>
+<script src="js/cards-elenda.js"></script>
+<script src="js/cards-ff.js"></script>
+<script src="js/cards-wakanda.js"></script>
+<script src="js/cards-generic.js"></script>
+<script src="js/decks.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/ui-extra.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

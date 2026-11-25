@@ -194,6 +194,10 @@ const AIH = {
     if (max >= 5 && (AI.wipeWanted(pi) || opps(pi).flatMap(creatures).reduce((a, c) => a + AIH.value(c), 0) > creatures(pi).reduce((a, c) => a + AIH.value(c), 0) * 1.5)) return max;
     return Math.min(max, 4);
   },
+  genericMode(ctx, opts) {
+    const harm = opts.find(o => o.eff.steps.some(s => s.target && s.target.harmful && s.target.kind === 'perm') && allPerms().some(c => c.ctrl !== ctx.p && o.eff.steps.some(s => s.target && s.target.filter && s.target.filter(c, ctx))));
+    return harm || opts.find(o => o.eff.steps.some(s => s.role === 'tokens' || !s.target)) || opts[0];
+  },
   productionTarget(cs) { return cs.slice().sort((a, b) => mv(b) - mv(a))[0]; },
 };
 
